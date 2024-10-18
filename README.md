@@ -45,6 +45,7 @@ Voyager requires Python ≥ 3.9 and Node.js ≥ 16.13.0. We have tested on Ubunt
 git clone https://github.com/MineDojo/Voyager
 cd Voyager
 pip install -e .
+pip install langchain_community
 ```
 
 ## Node.js Install
