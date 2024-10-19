@@ -22,10 +22,10 @@ export function findFromVein (bot: Bot, block: Block, maxBlocks: number, maxDist
           const neighbor = bot.blockAt(neighborPos)
           if (neighbor == null || neighbor.type !== type) continue
 
-          if (targets.includes(neighbor)) continue
-          if (open.includes(neighbor)) continue
+          if (targets.includes(neighbor as any)) continue
+          if (open.includes(neighbor as any)) continue
 
-          open.push(neighbor)
+          open.push(neighbor as any)
         }
       }
     }
