@@ -11,43 +11,64 @@ from .agents import ActionAgent
 from .agents import CriticAgent
 from .agents import CurriculumAgent
 from .agents import SkillManager
+# TODO 1: should I add it to skillmanager?
+# from utils.graph_rag_manager import GraphRAGManager
 
+# TODO 1: Add Graph RAG for Retrieval-Augmented Reasoning
+#from utils.scene_graph import SceneGraph
+# TODO 1: Initialize the scene graph
+#scene_graph = SceneGraph()
 
-# TODO: remove event memory
+# TODO 2: 
+#from dspy import DSPyPromptOptimizer  # Import DSPy
+#from dspy import Program, Signature, Value  # Import necessary DSPy components
+#from utils.prompt_optimizer_dspy import VoyagerPromptOptimizer
+
+# TODO orginal: remove event memory
 class Voyager:
     def __init__(
         self,
         mc_port: int = None,
         azure_login: Dict[str, str] = None,
         server_port: int = 3000,
-        openai_api_key: str = None,
+        #openai_api_key: str = None,
+        ANTHROPIC_API_KEY: str = None,  # Updated to Claude API key
         env_wait_ticks: int = 20,
         env_request_timeout: int = 600,
         max_iterations: int = 160,
         reset_placed_if_failed: bool = False,
-        action_agent_model_name: str = "gpt-4",
+        action_agent_model_name: str = "Claude Sonnet 3.5",  # Changed to Claude Sonnet 3.5
+        #action_agent_model_name: str = "gpt-4",
         action_agent_temperature: float = 0,
         action_agent_task_max_retries: int = 4,
         action_agent_show_chat_log: bool = True,
         action_agent_show_execution_error: bool = True,
-        curriculum_agent_model_name: str = "gpt-4",
+        curriculum_agent_model_name: str = "Claude Sonnet 3.5",  # Changed to Claude
+        #curriculum_agent_model_name: str = "gpt-4",
         curriculum_agent_temperature: float = 0,
-        curriculum_agent_qa_model_name: str = "gpt-3.5-turbo",
+        curriculum_agent_qa_model_name: str = "Claude Sonnet 3.5", # Changed to Claude Sonnet 3.5
+        #curriculum_agent_qa_model_name: str = "gpt-3.5-turbo",
         curriculum_agent_qa_temperature: float = 0,
         curriculum_agent_warm_up: Dict[str, int] = None,
         curriculum_agent_core_inventory_items: str = r".*_log|.*_planks|stick|crafting_table|furnace"
         r"|cobblestone|dirt|coal|.*_pickaxe|.*_sword|.*_axe",
         curriculum_agent_mode: str = "auto",
-        critic_agent_model_name: str = "gpt-4",
+        critic_agent_model_name: str = "Claude Sonnet 3.5",  # Changed to Claude
+        #critic_agent_model_name: str = "gpt-4",
         critic_agent_temperature: float = 0,
         critic_agent_mode: str = "auto",
-        skill_manager_model_name: str = "gpt-3.5-turbo",
+        skill_manager_model_name: str = "Claude Sonnet 3.5",  # Changed to Claude
+        #skill_manager_model_name: str = "gpt-3.5-turbo",
         skill_manager_temperature: float = 0,
         skill_manager_retrieval_top_k: int = 5,
-        openai_api_request_timeout: int = 240,
+        claude_api_request_timeout: int = 240,  # Updated parameter name
+        #openai_api_request_timeout: int = 240,
         ckpt_dir: str = "ckpt",
         skill_library_dir: str = None,
         resume: bool = False,
+        # TODO 1: Add Graph RAG for Retrieval-Augmented Reasoning
+        # scene_graph, 
+        # vectordb,
     ):
         """
         The main class for Voyager.
@@ -95,7 +116,7 @@ class Voyager:
         :param skill_manager_model_name: skill manager model name
         :param skill_manager_temperature: skill manager temperature
         :param skill_manager_retrieval_top_k: how many skills to retrieve for each task
-        :param openai_api_request_timeout: how many seconds to wait for openai api
+        :param claude_api_request_timeout: how many seconds to wait for openai api
         :param ckpt_dir: checkpoint dir
         :param skill_library_dir: skill library dir
         :param resume: whether to resume from checkpoint
@@ -111,18 +132,31 @@ class Voyager:
         self.reset_placed_if_failed = reset_placed_if_failed
         self.max_iterations = max_iterations
 
+        #TODO 1: Add Graph RAG for Retrieval-Augmented Reasoning
+        # self.scene_graph = scene_graph
+        # self.graph_rag_manager = GraphRAGManager(scene_graph, vectordb)
+        # self.instruction_learner = InstructionLearning()
+
         # set openai api key
-        os.environ["OPENAI_API_KEY"] = openai_api_key
+       #os.environ["OPENAI_API_KEY"] = openai_api_key
+        """
+        add claude api key
+        """
+        #TODO change to claude api key
+        os.environ["ANTHROPIC_API_KEY"] = ANTHROPIC_API_KEY
 
         # init agents
         self.action_agent = ActionAgent(
+            # action agent is the iterative prompting mechanism in paper
+            # TODO 1: Add Graph RAG for Retrieval-Augmented Reasoning
             model_name=action_agent_model_name,
             temperature=action_agent_temperature,
-            request_timout=openai_api_request_timeout,
+            request_timout=claude_api_request_timeout,
             ckpt_dir=ckpt_dir,
             resume=resume,
             chat_log=action_agent_show_chat_log,
             execution_error=action_agent_show_execution_error,
+            # TODO 1: scene_graph=scene_graph,  # Initialize the scene graph in the action agent
         )
         self.action_agent_task_max_retries = action_agent_task_max_retries
         self.curriculum_agent = CurriculumAgent(
@@ -130,26 +164,30 @@ class Voyager:
             temperature=curriculum_agent_temperature,
             qa_model_name=curriculum_agent_qa_model_name,
             qa_temperature=curriculum_agent_qa_temperature,
-            request_timout=openai_api_request_timeout,
+            request_timout=claude_api_request_timeout,
             ckpt_dir=ckpt_dir,
             resume=resume,
             mode=curriculum_agent_mode,
             warm_up=curriculum_agent_warm_up,
             core_inventory_items=curriculum_agent_core_inventory_items,
+            # TODO 1: scene_graph=scene_graph,  # Initialize the scene graph in the curriculum agent
         )
         self.critic_agent = CriticAgent(
             model_name=critic_agent_model_name,
             temperature=critic_agent_temperature,
-            request_timout=openai_api_request_timeout,
+            request_timout=claude_api_request_timeout,
             mode=critic_agent_mode,
+            # TODO 1: scene_graph=scene_graph,  # Initialize the scene graph in the critic agent
         )
         self.skill_manager = SkillManager(
+            # TODO 1: Add Graph RAG for Retrieval-Augmented Reasoning
             model_name=skill_manager_model_name,
             temperature=skill_manager_temperature,
             retrieval_top_k=skill_manager_retrieval_top_k,
-            request_timout=openai_api_request_timeout,
+            request_timout=claude_api_request_timeout,
             ckpt_dir=skill_library_dir if skill_library_dir else ckpt_dir,
             resume=True if resume or skill_library_dir else False,
+            # TODO 1: scene_graph=scene_graph,  # Initialize the scene graph in the skill manager
         )
         self.recorder = U.EventRecorder(ckpt_dir=ckpt_dir, resume=resume)
         self.resume = resume
@@ -162,6 +200,19 @@ class Voyager:
         self.conversations = []
         self.last_events = None
 
+    # TODO 1: Add Graph RAG for Retrieval-Augmented Reasoning
+    # def execute_task(self, instruction):
+    #     # Step 1: Parse instruction
+    #     parsed_instruction = self.instruction_learner.parse_instruction(instruction)
+
+    #     # Step 2: Retrieve context with Graph RAG
+    #     context_docs = self.graph_rag_manager.retrieve_with_graph(parsed_instruction)
+
+    #     # Step 3: Use the context and parsed instruction to inform decision-making
+    #     result = self.make_decision(parsed_instruction, context_docs)
+        
+    #     return result
+    
     def reset(self, task, context="", reset_env=True):
         self.action_agent_rollout_num_iter = 0
         self.task = task
