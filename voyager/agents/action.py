@@ -3,14 +3,34 @@ import time
 
 import voyager.utils as U
 from javascript import require
-from langchain.chat_models import ChatOpenAI
+# from langchain.chat_models import ChatOpenAI
+from langchain_anthropic import ChatAnthropic
 from langchain.prompts import SystemMessagePromptTemplate
 from langchain.schema import AIMessage, HumanMessage, SystemMessage
+
+model_name = ChatAnthropic(model="claude-3.5", temperature=0.7, max_tokens=512)
 
 from voyager.prompts import load_prompt
 from voyager.control_primitives_context import load_control_primitives_context
 
 
+# # TODO 2: Initialize DSPy prompt optimizer
+# self.prompt_optimizer = VoyagerPromptOptimizer(
+#     model_name="Claude Sonnet 3.5",
+#     temperature=0.5,
+#     max_iterations=3,
+# )
+# def step(self):
+#     # Optimize prompt before sending to the agent
+#     optimized_prompt = self.prompt_optimizer.optimize(self.messages)
+#     ai_message = self.action_agent.llm(optimized_prompt)
+#     # TODO 2: Rest of the code...
+
+# """
+# End of new code
+#  """
+
+# TODO: Modify the ActionAgent to use scene graph queries for reasoning about actions.
 class ActionAgent:
     def __init__(
         self,
@@ -22,6 +42,8 @@ class ActionAgent:
         chat_log=True,
         execution_error=True,
     ):
+        # TODO: Add a parameter to the constructor for the Graph RAG approach
+        # self.scene_graph = scene_graph()  # Initialize the scene graph in the action agent
         self.ckpt_dir = ckpt_dir
         self.chat_log = chat_log
         self.execution_error = execution_error
@@ -31,7 +53,7 @@ class ActionAgent:
             self.chest_memory = U.load_json(f"{ckpt_dir}/action/chest_memory.json")
         else:
             self.chest_memory = {}
-        self.llm = ChatOpenAI(
+        self.llm = ChatAnthropic(
             model_name=model_name,
             temperature=temperature,
             request_timeout=request_timout,
@@ -278,3 +300,10 @@ class ActionAgent:
                 if item:
                     chatlog.add(item)
         return "I also need " + ", ".join(chatlog) + "." if chatlog else ""
+    
+    # TODO: Implement the process_action method
+    # def process_action(self, events):
+    #     # Query the scene graph to get nearby objects
+    #     nearby_objects = self.scene_graph.query(current_state["object_id"], relation="nearby")
+    #     # Use the nearby objects and other relationships for reasoning
+    #     pass
