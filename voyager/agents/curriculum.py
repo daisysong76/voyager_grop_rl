@@ -6,11 +6,13 @@ import re
 import voyager.utils as U
 from voyager.prompts import load_prompt
 from voyager.utils.json_utils import fix_and_parse_json
-from langchain.chat_models import ChatOpenAI
+#from langchain.chat_models import ChatOpenAI
+from langchain_anthropic import ChatAnthropic
 from langchain.embeddings.openai import OpenAIEmbeddings
 from langchain.schema import HumanMessage, SystemMessage
 from langchain.vectorstores import Chroma
 
+# TODO: Create a new class within the file that uses the Graph RAG approach to retrieve relevant skills based on graph embeddings or scene graph queries.
 
 class CurriculumAgent:
     def __init__(
@@ -26,12 +28,12 @@ class CurriculumAgent:
         warm_up=None,
         core_inventory_items: str | None = None,
     ):
-        self.llm = ChatOpenAI(
+        self.llm = ChatAnthropic(
             model_name=model_name,
             temperature=temperature,
             request_timeout=request_timout,
         )
-        self.qa_llm = ChatOpenAI(
+        self.qa_llm = ChatAnthropic(
             model_name=qa_model_name,
             temperature=qa_temperature,
             request_timeout=request_timout,
