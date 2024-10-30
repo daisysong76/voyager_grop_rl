@@ -1,9 +1,10 @@
 from voyager.prompts import load_prompt
 from voyager.utils.json_utils import fix_and_parse_json
-from langchain.chat_models import ChatOpenAI
+#from langchain.chat_models import ChatOpenAI
+from langchain_anthropic import ChatAnthropic
 from langchain.schema import HumanMessage, SystemMessage
 
-
+# TODO: Create a new class within the file that uses the Graph RAG approach to retrieve relevant skills based on graph embeddings or scene graph queries.
 class CriticAgent:
     def __init__(
         self,
@@ -12,7 +13,7 @@ class CriticAgent:
         request_timout=120,
         mode="auto",
     ):
-        self.llm = ChatOpenAI(
+        self.llm = ChatAnthropic(
             model_name=model_name,
             temperature=temperature,
             request_timeout=request_timout,
