@@ -1,14 +1,13 @@
 import re
 import time
-
 import voyager.utils as U
 from javascript import require
-# from langchain.chat_models import ChatOpenAI
-from langchain_anthropic import ChatAnthropic
+from langchain.chat_models import ChatOpenAI
+#from langchain_anthropic import ChatAnthropic
 from langchain.prompts import SystemMessagePromptTemplate
 from langchain.schema import AIMessage, HumanMessage, SystemMessage
 
-model_name = ChatAnthropic(model="claude-3.5", temperature=0.7, max_tokens=512)
+#model_name = ChatAnthropic(model="claude-3.5", temperature=0.7, max_tokens=512)
 
 from voyager.prompts import load_prompt
 from voyager.control_primitives_context import load_control_primitives_context
@@ -34,26 +33,28 @@ from voyager.control_primitives_context import load_control_primitives_context
 class ActionAgent:
     def __init__(
         self,
-        model_name="gpt-3.5-turbo",
+        model_name="gpt-4",
         temperature=0,
         request_timout=120,
         ckpt_dir="ckpt",
         resume=False,
         chat_log=True,
         execution_error=True,
+        vision_agent=None  # Add VisionAgent parameter
     ):
         # TODO: Add a parameter to the constructor for the Graph RAG approach
         # self.scene_graph = scene_graph()  # Initialize the scene graph in the action agent
         self.ckpt_dir = ckpt_dir
         self.chat_log = chat_log
         self.execution_error = execution_error
+        self.vision_agent = vision_agent
         U.f_mkdir(f"{ckpt_dir}/action")
         if resume:
             print(f"\033[32mLoading Action Agent from {ckpt_dir}/action\033[0m")
             self.chest_memory = U.load_json(f"{ckpt_dir}/action/chest_memory.json")
         else:
             self.chest_memory = {}
-        self.llm = ChatAnthropic(
+        self.llm = ChatOpenAI(
             model_name=model_name,
             temperature=temperature,
             request_timeout=request_timout,
@@ -105,7 +106,7 @@ class ActionAgent:
             "smeltItem",
             "killMob",
         ]
-        if not self.llm.model_name == "gpt-3.5-turbo":
+        if not self.llm.model_name == "gpt-4":
             base_skills += [
                 "useChest",
                 "mineflayer",
@@ -206,6 +207,11 @@ class ActionAgent:
         ):
             observation += self.render_chest_observation()
 
+        # TODO 2: Visual analysis if VisionAgent is available
+        if self.vision_agent:
+            visual_context = self.vision_agent.capture_and_analyze("path_to_image.png")
+            observation += f"Visual Analysis:\n{visual_context}\n\n"
+
         observation += f"Task: {task}\n\n"
 
         if context:
@@ -231,7 +237,7 @@ class ActionAgent:
                 babel_generator = require("@babel/generator").default
 
                 code_pattern = re.compile(r"```(?:javascript|js)(.*?)```", re.DOTALL)
-                code = "\n".join(code_pattern.findall(message.content))
+                code = "\n".join(code_pattern.findall(message.content)) #original is : .message.content
                 parsed = babel.parse(code)
                 functions = []
                 assert len(list(parsed.program.body)) > 0, "No functions found"

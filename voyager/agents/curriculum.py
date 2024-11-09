@@ -1,3 +1,8 @@
+# TODO 2: to add Hierarchical planner that decomposes complex tasks
+# Environment-Aware Task Selection
+# Enhanced Contextual Awareness: By integrating VisionAgent, CurriculumAgent can “see” the current environment and tailor tasks that make sense in the immediate context. For example, if the visual input detects trees, CurriculumAgent might prioritize wood-gathering tasks, avoiding irrelevant tasks like mining if no ores are visible.
+# Dynamic Task Adjustment: This lets CurriculumAgent dynamically adapt the task list based on what’s actually available or visible in the environment, leading to more efficient exploration and skill-building.
+
 from __future__ import annotations
 
 import random
@@ -6,20 +11,21 @@ import re
 import voyager.utils as U
 from voyager.prompts import load_prompt
 from voyager.utils.json_utils import fix_and_parse_json
-#from langchain.chat_models import ChatOpenAI
-from langchain_anthropic import ChatAnthropic
-from langchain.embeddings.openai import OpenAIEmbeddings
+from langchain.chat_models import ChatOpenAI
+#from langchain_anthropic import ChatAnthropic
+from langchain_community.embeddings import OpenAIEmbeddings
+#from langchain.embeddings.openai import OpenAIEmbeddings
 from langchain.schema import HumanMessage, SystemMessage
 from langchain.vectorstores import Chroma
 
-# TODO: Create a new class within the file that uses the Graph RAG approach to retrieve relevant skills based on graph embeddings or scene graph queries.
+# TODO 2: Create a new class within the file that uses the Graph RAG approach to retrieve relevant skills based on graph embeddings or scene graph queries.
 
 class CurriculumAgent:
     def __init__(
         self,
-        model_name="gpt-3.5-turbo",
+        model_name="gpt-4",
         temperature=0,
-        qa_model_name="gpt-3.5-turbo",
+        qa_model_name="gpt-4",
         qa_temperature=0,
         request_timout=120,
         ckpt_dir="ckpt",
@@ -28,12 +34,12 @@ class CurriculumAgent:
         warm_up=None,
         core_inventory_items: str | None = None,
     ):
-        self.llm = ChatAnthropic(
+        self.llm = ChatOpenAI(
             model_name=model_name,
             temperature=temperature,
             request_timeout=request_timout,
         )
-        self.qa_llm = ChatAnthropic(
+        self.qa_llm = ChatOpenAI(
             model_name=qa_model_name,
             temperature=qa_temperature,
             request_timeout=request_timout,

@@ -1,0 +1,13 @@
+{
+  "dependencies": {
+    "debug": "^4.3.7",
+    "mineflayer": "^4.0.0",
+    "openai": "^4.71.1",
+    "prismarine-viewer": "^1.28.0",
+    "puppeteer": "^23.7.0",
+    "axios": "^1.6.0",
+    "@xboxreplay/xboxlive-auth": "latest",
+    "prismarine-auth": "latest",
+    "minecraft-protocol": "latest"
+  }
+}

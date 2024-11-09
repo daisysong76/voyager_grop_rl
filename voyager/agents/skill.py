@@ -2,9 +2,10 @@ import os
 
 import voyager.utils as U
 from dataclasses import dataclass
-#from langchain.chat_models import ChatOpenAI
-from langchain_anthropic import ChatAnthropic
-from langchain.embeddings.openai import OpenAIEmbeddings
+from langchain.chat_models import ChatOpenAI
+#from langchain_anthropic import ChatAnthropic
+#from langchain.embeddings.openai import OpenAIEmbeddings
+from langchain_community.embeddings import OpenAIEmbeddings
 from langchain.schema import HumanMessage, SystemMessage
 from langchain.vectorstores import Chroma
 
@@ -39,7 +40,8 @@ import dspy
 class SkillManager:
     def __init__(
         self,
-        model_name="gpt-3.5-turbo",
+        model_name="gpt-4",
+        # model_name= dspy,
         temperature=0,
         retrieval_top_k=5,
         request_timout=120,
@@ -119,7 +121,7 @@ class SkillManager:
         # """
 
 
-        self.llm = ChatAnthropic(
+        self.llm = ChatOpenAI(
             model_name=model_name,
             temperature=temperature,
             request_timeout=request_timout,

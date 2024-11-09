@@ -3,6 +3,16 @@ const express = require("express");
 const bodyParser = require("body-parser");
 const mineflayer = require("mineflayer");
 
+"TODO: image capture and metadata collection, openai api call"; 
+const puppeteer = require('puppeteer');
+//const { createCanvas, Image } = require("canvas");
+const captureInterval = 60000; // 1 minute
+const { mineflayer: mineflayerViewer } = require('prismarine-viewer');
+const OpenAI = require('openai');
+const openai = new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY,
+});
+
 const skills = require("./lib/skillLoader");
 const { initCounter, getNextTime } = require("./lib/utils");
 const obs = require("./lib/observation/base");
@@ -15,6 +25,10 @@ const OnSave = require("./lib/observation/onSave");
 const Chests = require("./lib/observation/chests");
 const { plugin: tool } = require("mineflayer-tool");
 
+"add debug mode";
+const debug = require('debug')('bot');
+"add error handling";
+
 let bot = null;
 
 const app = express();
@@ -22,130 +36,106 @@ const app = express();
 app.use(bodyParser.json({ limit: "50mb" }));
 app.use(bodyParser.urlencoded({ limit: "50mb", extended: false }));
 
-app.post("/start", (req, res) => {
-    if (bot) onDisconnect("Restarting bot");
-    bot = null;
-    console.log(req.body);
-    bot = mineflayer.createBot({
-        host: "localhost", // minecraft server ip
-        port: req.body.port, // minecraft server port
-        username: "bot",
-        disableChatSigning: true,
-        checkTimeoutInterval: 60 * 60 * 1000,
-    });
-    bot.once("error", onConnectionFailed);
+// Add bot management
+const bots = new Map();  // Store multiple bots
+let currentBot = null; // Keep track of current bot for compatibility
 
-    // Event subscriptions
-    bot.waitTicks = req.body.waitTicks;
-    bot.globalTickCounter = 0;
-    bot.stuckTickCounter = 0;
-    bot.stuckPosList = [];
-    bot.iron_pickaxe = false;
+app.post("/start", async (req, res) => {
+    try {
+        const serverPort = parseInt(req.app.get('port') || req.query.port || '3000');
+        const mcPort = parseInt(req.body.port);
+        const username = req.body.username;
 
-    bot.on("kicked", onDisconnect);
+        console.log(`Starting bot ${username} on server port ${serverPort}, MC port ${mcPort}`);
 
-    // mounting will cause physicsTick to stop
-    bot.on("mount", () => {
-        bot.dismount();
-    });
-
-    bot.once("spawn", async () => {
-        bot.removeListener("error", onConnectionFailed);
-        let itemTicks = 1;
-        if (req.body.reset === "hard") {
-            bot.chat("/clear @s");
-            bot.chat("/kill @s");
-            const inventory = req.body.inventory ? req.body.inventory : {};
-            const equipment = req.body.equipment
-                ? req.body.equipment
-                : [null, null, null, null, null, null];
-            for (let key in inventory) {
-                bot.chat(`/give @s minecraft:${key} ${inventory[key]}`);
-                itemTicks += 1;
+        // Clean up existing bot on this server port if any
+        if (bots.has(serverPort)) {
+            const existingBot = bots.get(serverPort);
+            try {
+                if (existingBot.viewer) existingBot.viewer.close();
+                await existingBot.end();
+            } catch (err) {
+                console.error(`Error cleaning up existing bot on port ${serverPort}:`, err);
             }
-            const equipmentNames = [
-                "armor.head",
-                "armor.chest",
-                "armor.legs",
-                "armor.feet",
-                "weapon.mainhand",
-                "weapon.offhand",
-            ];
-            for (let i = 0; i < 6; i++) {
-                if (i === 4) continue;
-                if (equipment[i]) {
-                    bot.chat(
-                        `/item replace entity @s ${equipmentNames[i]} with minecraft:${equipment[i]}`
-                    );
-                    itemTicks += 1;
+            bots.delete(serverPort);
+        }
+
+        // Create new bot
+        const bot = mineflayer.createBot({
+            host: "localhost",
+            port: mcPort,
+            username: username,
+            version: "1.19.4",
+            viewDistance: "tiny",
+            disableChatSigning: true
+        });
+
+        // Set as current bot for compatibility
+        currentBot = bot;
+        
+        // Store in bots map
+        bots.set(serverPort, bot);
+
+        // Keep all existing plugin loading
+        bot.loadPlugin(require('mineflayer-pathfinder').pathfinder);
+        bot.loadPlugin(require('mineflayer-tool').plugin);
+        bot.loadPlugin(require('mineflayer-collectblock').plugin);
+        bot.loadPlugin(require('mineflayer-pvp').plugin);
+
+        // Set up event handlers
+        bot.once('spawn', () => {
+            console.log(`Bot ${username} spawned successfully`);
+            
+            try {
+                // Initialize viewer with unique port
+                const viewerPort = 3007 + (serverPort - 3000);
+                mineflayerViewer(bot, { port: viewerPort, firstPerson: true });
+                console.log(`Viewer started on port ${viewerPort}`);
+
+                // Keep existing game rule settings
+                bot.chat("/gamerule doDaylightCycle false");
+                bot.chat("/time set day");
+                bot.chat("/gamerule doWeatherCycle false");
+                bot.chat("/weather clear");
+                bot.chat("/gamerule doMobSpawning false");
+                bot.chat("/kill @e[type=!player]");
+
+                res.json({ status: 'success' });
+            } catch (err) {
+                console.error(`Error in spawn handler:`, err);
+                if (!res.headersSent) {
+                    res.status(500).json({ error: err.message });
                 }
             }
+        });
+
+        bot.on('error', (err) => {
+            console.error(`Bot error:`, err);
+            if (!res.headersSent) {
+                res.status(500).json({ error: err.message });
+            }
+        });
+
+        bot.on('end', () => {
+            console.log(`Bot ${username} disconnected`);
+            bots.delete(serverPort);
+            if (currentBot === bot) {
+                currentBot = null;
+            }
+        });
+
+        // Add timeout for connection
+        setTimeout(() => {
+            if (!res.headersSent) {
+                res.status(500).json({ error: 'Connection timeout' });
+            }
+        }, 30000);
+
+    } catch (err) {
+        console.error('Error in /start:', err);
+        if (!res.headersSent) {
+            res.status(500).json({ error: err.message });
         }
-
-        if (req.body.position) {
-            bot.chat(
-                `/tp @s ${req.body.position.x} ${req.body.position.y} ${req.body.position.z}`
-            );
-        }
-
-        // if iron_pickaxe is in bot's inventory
-        if (
-            bot.inventory.items().find((item) => item.name === "iron_pickaxe")
-        ) {
-            bot.iron_pickaxe = true;
-        }
-
-        const { pathfinder } = require("mineflayer-pathfinder");
-        const tool = require("mineflayer-tool").plugin;
-        const collectBlock = require("mineflayer-collectblock").plugin;
-        const pvp = require("mineflayer-pvp").plugin;
-        //const minecraftHawkEye = require("minecrafthawkeye");
-        bot.loadPlugin(pathfinder);
-        bot.loadPlugin(tool);
-        bot.loadPlugin(collectBlock);
-        bot.loadPlugin(pvp);
-        //bot.loadPlugin(minecraftHawkEye);
-
-        bot.collectBlock.movements.digCost = 0;
-        bot.collectBlock.movements.placeCost = 0;
-
-        obs.inject(bot, [
-            OnChat,
-            OnError,
-            Voxels,
-            Status,
-            Inventory,
-            OnSave,
-            Chests,
-            BlockRecords,
-        ]);
-        skills.inject(bot);
-
-        if (req.body.spread) {
-            bot.chat(`/spreadplayers ~ ~ 0 300 under 80 false @s`);
-            await bot.waitForTicks(bot.waitTicks);
-        }
-
-        await bot.waitForTicks(bot.waitTicks * itemTicks);
-        res.json(bot.observe());
-
-        initCounter(bot);
-        bot.chat("/gamerule keepInventory true");
-        bot.chat("/gamerule doDaylightCycle false");
-    });
-
-    function onConnectionFailed(e) {
-        console.log(e);
-        bot = null;
-        res.status(400).json({ error: e });
-    }
-    function onDisconnect(message) {
-        if (bot.viewer) {
-            bot.viewer.close();
-        }
-        bot.end();
-        console.log(message);
-        bot = null;
     }
 });
 
@@ -422,4 +412,116 @@ const DEFAULT_PORT = 3000;
 const PORT = process.argv[2] || DEFAULT_PORT;
 app.listen(PORT, () => {
     console.log(`Server started on port ${PORT}`);
+});
+
+async function setupVisionCapture(bot) {
+    const browser = await puppeteer.launch();
+    const page = await browser.newPage();
+    await page.setViewport({ width: 640, height: 480 });
+    await page.goto('http://localhost:3007'); // Connect to the viewer
+    
+    // Wait for the viewer to load
+    await page.waitForTimeout(2000);
+
+    let lastCaptureTime = Date.now();
+    const captureInterval = 60000; // 1 minute
+
+    async function captureAndAnalyze() {
+        try {
+            // Take screenshot
+            const screenshot = await page.screenshot({
+                encoding: 'base64'
+            });
+
+            // Collect metadata
+            const metadata = {
+                timestamp: new Date().toISOString(),
+                position: bot.entity.position,
+                orientation: bot.entity.yaw,
+                inventory: bot.inventory.items().map(item => ({
+                    name: item.name,
+                    count: item.count
+                }))
+            };
+
+            // Send to GPT-4 Vision
+            const response = await openai.chat.completions.create({
+                model: "gpt-4-vision-preview",
+                messages: [
+                    {
+                        role: "system",
+                        content: "You are analyzing Minecraft environments. Focus on identifying: 1) Resources worth collecting 2) Potential hazards 3) Navigation suggestions. Be concise."
+                    },
+                    {
+                        role: "user",
+                        content: [
+                            {
+                                type: "text",
+                                text: `Analyze this Minecraft view and provide actionable insights.\nBot metadata: ${JSON.stringify(metadata, null, 2)}`
+                            },
+                            {
+                                type: "image_url",
+                                image_url: `data:image/png;base64,${screenshot}`
+                            }
+                        ]
+                    }
+                ],
+                max_tokens: 300
+            });
+
+            const analysis = response.choices[0].message.content;
+            console.log('Environment Analysis:', analysis);
+            
+            // Optionally, you can emit an event with the analysis
+            bot.emit('environmentAnalysis', analysis);
+            
+            return analysis;
+
+        } catch (error) {
+            console.error('Vision analysis error:', error);
+        }
+    }
+
+    // Set up periodic capture
+    bot.on('move', async () => {
+        const now = Date.now();
+        if (now - lastCaptureTime > captureInterval) {
+            await captureAndAnalyze();
+            lastCaptureTime = now;
+        }
+    });
+
+    // Clean up function
+    const cleanup = async () => {
+        await browser.close();
+    };
+
+    // Add cleanup to bot's end event
+    bot.once('end', cleanup);
+
+    return cleanup; // Return cleanup function in case you need to stop early
+}
+
+// Add server error handling
+app.use((err, req, res, next) => {
+    console.error("Express error:", err);
+    if (!res.headersSent) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Graceful shutdown
+process.on("SIGINT", async () => {
+    console.log("Shutting down gracefully...");
+    if (bot) {
+        try {
+            if (bot.viewer) {
+                bot.viewer.close();
+            }
+            await bot.end();
+        } catch (err) {
+            console.error("Error during shutdown:", err);
+        }
+    }
+    process.exit(0);
 });

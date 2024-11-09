@@ -25,7 +25,7 @@ key components: 1) an automatic curriculum that maximizes exploration, 2) an
 ever-growing skill library of executable code for storing and retrieving complex
 behaviors, and 3) a new iterative prompting mechanism that incorporates environment
 feedback, execution errors, and self-verification for program improvement.
-Voyager interacts with GPT-4 via blackbox queries, which bypasses the need for
+Voyager interacts with gpt-4 via blackbox queries, which bypasses the need for
 model parameter fine-tuning. The skills developed by Voyager are temporally
 extended, interpretable, and compositional, which compounds the agent’s abilities
 rapidly and alleviates catastrophic forgetting. Empirically, Voyager shows
@@ -73,7 +73,7 @@ You need to install fabric mods to support all the features in Voyager. Remember
 Follow the instructions in [Fabric Mods Install](installation/fabric_mods_install.md) to install the mods.
 
 # Getting Started
-Voyager uses OpenAI's GPT-4 as the language model. You need to have an OpenAI API key to use Voyager. You can get one from [here](https://platform.openai.com/account/api-keys).
+Voyager uses OpenAI's gpt-4 as the language model. You need to have an OpenAI API key to use Voyager. You can get one from [here](https://platform.openai.com/account/api-keys).
 
 After the installation process, you can run Voyager by:
 ```python
