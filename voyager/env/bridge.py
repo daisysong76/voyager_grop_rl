@@ -96,6 +96,7 @@ class VoyagerEnv(gym.Env):
                 timeout=self.request_timeout,
             )
             if res.status_code != 200:
+                print(f"Response content: {res.content}")
                 self.mineflayer.stop()
                 raise RuntimeError(
                     f"Minecraft server reply with code {res.status_code}"
