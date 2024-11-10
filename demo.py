@@ -26,4 +26,22 @@ voyager = Voyager(
 )
 
 # start lifelong learning
-voyager.learn()
+try:
+    voyager.learn(reset_env=False)
+except KeyboardInterrupt:
+    print("Program interrupted. Stopping mineflayer.")
+    # Add any cleanup code here if necessary
+
+
+"""
+{
+    "OPENAI_API_KEY": "",
+    "OPENAI_ORG_ID": "",
+    "GEMINI_API_KEY": "",
+    "ANTHROPIC_API_KEY": "",
+    "REPLICATE_API_KEY": "",
+    "GROQCLOUD_API_KEY": "",
+    "HUGGINGFACE_API_KEY": "",
+    "QWEN_API_KEY":""
+}
+"""
