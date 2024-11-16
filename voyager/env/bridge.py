@@ -22,8 +22,11 @@ class VoyagerEnv(gym.Env):
         azure_login=None,
         server_host="http://127.0.0.1",
         server_port=3000,
+        viewer_port=None,
+        username=None,
         request_timeout=600,
         log_path="./logs",
+        pause_on_think=True,
     ):
         if not mc_port and not azure_login:
             raise ValueError("Either mc_port or azure_login must be specified")
@@ -35,9 +38,13 @@ class VoyagerEnv(gym.Env):
         self.azure_login = azure_login
         self.server = f"{server_host}:{server_port}"
         self.server_port = server_port
+        self.viewer_port = viewer_port
+        self.username = username
         self.request_timeout = request_timeout
         self.log_path = log_path
         self.mineflayer = self.get_mineflayer_process(server_port)
+        self.pause_on_think = pause_on_think
+
         if azure_login:
             self.mc_instance = self.get_mc_instance()
         else:
@@ -90,16 +97,24 @@ class VoyagerEnv(gym.Env):
                 else:
                     continue
             print(self.mineflayer.ready_line)
+            payload = self.reset_options.copy()
+            if self.viewer_port is not None:
+                payload["viewerPort"] = self.viewer_port
+            if self.username is not None:
+                payload["username"] = self.username
+
             res = requests.post(
                 f"{self.server}/start",
-                json=self.reset_options,
+                #json=self.reset_options,
+                json=payload,
                 timeout=self.request_timeout,
             )
             if res.status_code != 200:
                 print(f"Response content: {res.content}")
                 self.mineflayer.stop()
                 raise RuntimeError(
-                    f"Minecraft server reply with code {res.status_code}"
+                    #f"Minecraft server reply with code {res.status_code}"
+                    f"Minecraft server replied with code {res.status_code}"
                 )
             return res.json()
 
@@ -148,6 +163,8 @@ class VoyagerEnv(gym.Env):
             "spread": options.get("spread", False),
             "waitTicks": options.get("wait_ticks", 5),
             "position": options.get("position", None),
+            "viewerPort": self.viewer_port,
+            "username": self.username,
         }
 
         self.unpause()
@@ -174,6 +191,8 @@ class VoyagerEnv(gym.Env):
         return not self.connected
 
     def pause(self):
+        if not self.pause_on_think:
+            return False
         if self.mineflayer.is_running and not self.server_paused:
             res = requests.post(f"{self.server}/pause")
             if res.status_code == 200:
@@ -181,6 +200,8 @@ class VoyagerEnv(gym.Env):
         return self.server_paused
 
     def unpause(self):
+        if not self.pause_on_think:
+            return False
         if self.mineflayer.is_running and self.server_paused:
             res = requests.post(f"{self.server}/pause")
             if res.status_code == 200:
@@ -188,3 +209,42 @@ class VoyagerEnv(gym.Env):
             else:
                 print(res.json())
         return self.server_paused
+
+# The `bridge.py` file defines a class called `VoyagerEnv`, which is a custom environment for interacting with a Minecraft server using the Gymnasium library. This environment is likely part of a larger project that involves training agents to perform tasks in a Minecraft setting. Here's a breakdown of its key components and functionality:
+
+# ### Key Components:
+
+# 1. **Imports:**
+#    - The file imports various modules, including standard libraries (`os`, `time`, `warnings`, `json`), third-party libraries (`requests`, `gymnasium`), and local utility functions from `voyager.utils`.
+
+# 2. **Class Definition:**
+#    - The `VoyagerEnv` class inherits from `gym.Env`, making it compatible with the Gymnasium framework for reinforcement learning.
+
+# ### Constructor (`__init__` method):
+# - **Parameters:**
+#   - The constructor takes several parameters, including `mc_port`, `azure_login`, server configuration options, and logging options.
+# - **Initialization:**
+#   - It initializes instance variables based on the provided parameters, checks for required parameters, and sets up a subprocess to run a Mineflayer server (a Node.js library for creating Minecraft bots).
+
+# ### Key Methods:
+
+# 1. **`get_mineflayer_process`:**
+#    - This method starts a Mineflayer process using a subprocess monitor, which manages the lifecycle of the Mineflayer server and logs its output.
+
+# 2. **`get_mc_instance`:**
+#    - This method is responsible for creating a Minecraft server instance. It likely interacts with the Minecraft server to set it up for use.
+
+# 3. **`reset`:**
+#    - This method resets the environment, allowing for a new episode to start. It handles options for resetting the server, such as inventory and equipment settings.
+
+# 4. **`close`:**
+#    - This method stops the environment and cleans up resources, including stopping the Mineflayer process and the Minecraft instance.
+
+# 5. **`pause` and `unpause`:**
+#    - These methods control the state of the server, allowing it to be paused or unpaused based on the `pause_on_think` flag.
+
+# 6. **`render`:**
+#    - This method is defined but not implemented, indicating that rendering functionality is not currently available in this environment.
+
+# ### Summary:
+# Overall, `bridge.py` serves as a bridge between a reinforcement learning agent and a Minecraft server, allowing the agent to interact with the game environment programmatically. It manages the setup, reset, and control of the Minecraft server and the Mineflayer bot, facilitating the training of agents in a Minecraft setting.

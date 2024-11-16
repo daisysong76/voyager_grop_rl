@@ -29,14 +29,18 @@ from .agents import SkillManager
 class Voyager:
     def __init__(
         self,
-        bot_username: str = "bot",
+        #bot_username: str = "bot",
+        bot_id=0,
         mc_port: int = None,
         azure_login: Dict[str, str] = None,
         server_port: int = 3000,
+        viewer_port: int = 3001,  # Add default viewer port
+        username: str = None,      # Add default username
         openai_api_key: str = None,
         #ANTHROPIC_API_KEY: str = None,  # Updated to Claude API key
         env_wait_ticks: int = 20,
         env_request_timeout: int = 600,
+        pause_on_think: bool = True,
         max_iterations: int = 160,
         reset_placed_if_failed: bool = False,
      
@@ -120,11 +124,29 @@ class Voyager:
         :param resume: whether to resume from checkpoint
         """
         # init env
+        self.bot_id = bot_id
+
+        # Calculate unique ports based on bot_id
+        server_port = 3000 + (bot_id * 2)          # Mineflayer port
+        viewer_port = 3001 + (bot_id * 2)          # Prismarine viewer port
+
+        # Assign unique username
+        username = username or f"bot_{bot_id}"
+
+        # Modify checkpoint dir to be unique per bot
+        ckpt_dir = os.path.join(ckpt_dir, f"bot_{bot_id}")
+        if not os.path.exists(ckpt_dir):
+            os.makedirs(ckpt_dir)
+
+        # Initialize environment with unique ports and username
         self.env = VoyagerEnv(
             mc_port=mc_port,
             azure_login=azure_login,
             server_port=server_port,
+            viewer_port=viewer_port,
+            username=username,
             request_timeout=env_request_timeout,
+            pause_on_think=pause_on_think,
         )
         self.env_wait_ticks = env_wait_ticks
         self.reset_placed_if_failed = reset_placed_if_failed
@@ -198,6 +220,9 @@ class Voyager:
         self.conversations = []
         self.last_events = None
 
+        # Modify checkpoint dir to be unique per bot
+        self.ckpt_dir = os.path.join(ckpt_dir, f"bot_{bot_id}")
+
     # TODO 1: Add Graph RAG for Retrieval-Augmented Reasoning
     # def execute_task(self, instruction):
     #     # Step 1: Parse instruction
@@ -208,6 +233,8 @@ class Voyager:
     #     result = self.make_decision(parsed_instruction, context_docs)
     #     return result
     
+   
+
     def reset(self, task, context="", reset_env=True):
         self.action_agent_rollout_num_iter = 0
         self.task = task
