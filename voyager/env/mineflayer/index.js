@@ -469,18 +469,19 @@ const path = require('path');
 async function setupVisionCapture(bot) {
     const browser = await puppeteer.launch({ headless: false }); // Set headless to false for debugging
     const page = await browser.newPage();
-    await page.setViewport({ width: 320, height: 240 });
+    //await page.setViewport({ width: 320, height: 240 });
     console.log('Connecting to viewer...');
+    // TODO: change to 3007 do not need to wait for viewer to load, then capture the screenshot
     await page.goto('http://localhost:3001'); // Connect to the viewer
-    await page.waitForSelector('#viewer-element');
+    //await page.waitForSelector('#viewer-element');
     //Slow down a bit so we don't get Resource Exhausted errors.  ????? TODO: check if this is necessary
     //time.sleep(20)
-
     // Wait for the viewer to load
-    await page.waitForTimeout(2000);
+    //await page.waitForTimeout(2000);
 
     let lastCaptureTime = Date.now();
-    const captureInterval = 1000 / 2 //16; // Approximately 62.5 ms for 16 fps
+    const captureInterval = 1000 / 2 
+    //16; // Approximately 62.5 ms for 16 fps
 
     // Ensure the logging folder exists
     const loggingFolder = path.resolve('/Users/daisysong/Desktop/CS194agent/Voyager_OAI/logs');
