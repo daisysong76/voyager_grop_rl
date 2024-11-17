@@ -120,7 +120,7 @@ app.post("/start", (req, res) => {
         }
         console.log('Starting vision capture after delay...');
         // Ensure the logging folder exists
-        const loggingFolder = path.resolve('/Users/daisysong/Desktop/CS194agent/Voyager_OAI/logs');
+        const loggingFolder = path.resolve('/Users/daisysong/Desktop/CS194agent/Voyager_OAI/logs/visions');
         if (!fs.existsSync(loggingFolder)) {
             fs.mkdirSync(loggingFolder, { recursive: true });
         }
@@ -130,6 +130,19 @@ app.post("/start", (req, res) => {
             console.log('Starting vision capture after delay...');
             setupVisionCapture(bot);
         }, 2000); // Delay in milliseconds (adjust as needed)
+         // new add for camera
+        // Camera synchronization logic
+        // setInterval(() => {
+        //     const cameraOffset = new Vec3(0, 1.6, 0); // Adjust Y value for height
+        //     const cameraPosition = bot.entity.position.plus(cameraOffset);
+        //     // Assuming you have a way to set the camera position in the viewer
+        //     if (bot.viewer) {
+        //         bot.viewer.setCameraPosition(cameraPosition);
+        //         bot.viewer.setCameraYaw(bot.entity.yaw);
+        //         bot.viewer.setCameraPitch(bot.entity.pitch);
+        //     }
+        // }, 50); // Update every 50ms (adjust as needed)
+        // new add for camera
 
         // Ensure bot.viewer is defined before using it
         // if (bot.viewer) {
@@ -466,6 +479,7 @@ app.listen(PORT, () => {
 const puppeteer = require('puppeteer');
 const path = require('path');
 
+
 async function setupVisionCapture(bot) {
     const browser = await puppeteer.launch({ headless: false }); // Set headless to false for debugging
     const page = await browser.newPage();
@@ -474,17 +488,13 @@ async function setupVisionCapture(bot) {
     // TODO: change to 3007 do not need to wait for viewer to load, then capture the screenshot
     await page.goto('http://localhost:3001'); // Connect to the viewer
     //await page.waitForSelector('#viewer-element');
-    //Slow down a bit so we don't get Resource Exhausted errors.  ????? TODO: check if this is necessary
-    //time.sleep(20)
-    // Wait for the viewer to load
-    //await page.waitForTimeout(2000);
 
     let lastCaptureTime = Date.now();
     const captureInterval = 1000 / 2 
     //16; // Approximately 62.5 ms for 16 fps
 
     // Ensure the logging folder exists
-    const loggingFolder = path.resolve('/Users/daisysong/Desktop/CS194agent/Voyager_OAI/logs');
+    const loggingFolder = path.resolve('/Users/daisysong/Desktop/CS194agent/Voyager_OAI/logs/visions');
     if (!fs.existsSync(loggingFolder)) {
         fs.mkdirSync(loggingFolder, { recursive: true });
     }
@@ -492,6 +502,7 @@ async function setupVisionCapture(bot) {
     // Maximum number of frames to keep
     const maxFrames = 1000; // Adjust this number based on your storage capacity
     const frameFiles = []; // Keep track of saved frame file names
+    const sharp = require('sharp'); 
 
     async function captureAndSave() {
         try {
@@ -504,14 +515,28 @@ async function setupVisionCapture(bot) {
             await page.screenshot({
                 path: screenshotPath,
                 type: 'jpeg',
-                quality: 50, // Adjust quality between 0-100# todo ask gpt to change to black and white
+                quality: 30, // Adjust quality between 0-100# todo ask gpt to change to black and white
             });
+            // new add
+            // Convert the screenshot to grayscale using sharp
+            //const grayscalePath = path.join(loggingFolder, `screenshot_bw-${timestamp}.jpg`);
+            await sharp(screenshotPath)
+                .grayscale() // Convert to grayscale
+                .toFile(grayscalePath); // Save the grayscale image
+
+            console.log(`Grayscale screenshot saved: ${grayscalePath}`);
+            // new add
 
             // Collect metadata
             const metadata = {
                 timestamp: new Date().toISOString(),
                 position: bot.entity.position,
                 orientation: bot.entity.yaw,
+                // biome: bot.biome,
+                // timeOfDay: bot.timeOfDay,
+                image_path: screenshotPath,
+                //image_path: grayscalePath,
+                screenshotFilename: screenshotFilename,
                 // inventory: bot.inventory.items().map((item) => ({
                 //     name: item.name,
                 //     count: item.count,

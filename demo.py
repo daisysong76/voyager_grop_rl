@@ -1,6 +1,8 @@
 from voyager import Voyager
 import os
 from dotenv import load_dotenv
+import threading  # Import Python's threading module
+import time
 
 # Load environment variables from .env file (if you're using one)
 load_dotenv()
@@ -23,26 +25,60 @@ azure_login = {
     "version": "fabric-loader-0.14.18-1.19", # the version Voyager is tested on
 }
 
-voyager = Voyager(
-    #mc_port="55612",
-    azure_login=azure_login,
+# voyager = Voyager(
+#     #mc_port="55612",
+#     azure_login=azure_login,
+#     openai_api_key=openai_api_key,
+#     ckpt_dir="/Users/daisysong/Desktop/Voyager2/checkpoints", # Feel free to use a new dir. Do not use the same dir as skill library because new events will still be recorded to ckpt_dir. 
+#     #resume = True,
+#     pause_on_think=False,
+# )
+
+# # start lifelong learning
+# try:
+#     voyager.learn(reset_env=False)
+# except KeyboardInterrupt:
+#     print("Program interrupted. Stopping mineflayer.")
+#     # Add any cleanup code here if necessary
+
+# Initialize the first bot
+bot_0 = Voyager(
+    bot_id=0,  # Unique ID for the first bot
+    mc_port=54961,
+    #azure_login=azure_login,
     openai_api_key=openai_api_key,
-    ckpt_dir="/Users/daisysong/Desktop/Voyager2/checkpoints", # Feel free to use a new dir. Do not use the same dir as skill library because new events will still be recorded to ckpt_dir. 
-    #resume = True,
-    # vision_agent=True,
-    # vision_model="gpt-4o-mini",
-    # vision_max_tokens=2000,
-    # vision_temperature=0.5,
-    # vision_frequency=10,
-    pause_on_think=False,
+    max_iterations=100,
+    #ckpt_dir="./ckpt",
 )
 
-# start lifelong learning
-try:
-    voyager.learn(reset_env=False)
-except KeyboardInterrupt:
-    print("Program interrupted. Stopping mineflayer.")
-    # Add any cleanup code here if necessary
+# Initialize the second bot
+bot_1 = Voyager(
+    bot_id=1,  # Unique ID for the second bot
+    mc_port=54961,  # Ensure it connects to the same Minecraft server
+    #azure_login=azure_login,
+    openai_api_key=openai_api_key,
+    max_iterations=100,
+    #ckpt_dir="./ckpt",
+)
+
+# Define what each bot thread should do
+def run_bot(voyager):
+    try:
+        voyager.learn(reset_env=False)  # Run the bot's learning process
+    except Exception as e:
+        print(f"Error: {str(e)}")
+# Create thread objects - they don't start running yet
+bot1_thread = threading.Thread(target=run_bot, args=(bot_0,))
+bot2_thread = threading.Thread(target=run_bot, args=(bot_1,))
+
+# Start the threads - this actually starts the bots running
+bot1_thread.start()
+time.sleep(5)  # Wait before starting second bot
+bot2_thread.start()
+
+# Wait for both threads to complete
+bot1_thread.join()
+bot2_thread.join()
 
 
 """

@@ -40,14 +40,12 @@ class ActionAgent:
         resume=False,
         chat_log=True,
         execution_error=True,
-        vision_agent=None  # Add VisionAgent parameter
     ):
         # TODO: Add a parameter to the constructor for the Graph RAG approach
         # self.scene_graph = scene_graph()  # Initialize the scene graph in the action agent
         self.ckpt_dir = ckpt_dir
         self.chat_log = chat_log
         self.execution_error = execution_error
-        self.vision_agent = vision_agent
         U.f_mkdir(f"{ckpt_dir}/action")
         if resume:
             print(f"\033[32mLoading Action Agent from {ckpt_dir}/action\033[0m")
@@ -313,3 +311,39 @@ class ActionAgent:
     #     nearby_objects = self.scene_graph.query(current_state["object_id"], relation="nearby")
     #     # Use the nearby objects and other relationships for reasoning
     #     pass
+
+    def analyze_vision_data(self, vision_data):
+        """
+        Parse vision data to identify resources and prioritize tasks.
+        """
+        resource_map = {
+            "tree": "Harvest wood",
+            "exposed_stone": "Mine cobblestone",
+            "water": "Collect water bucket",
+            "vegetation": "Gather seeds or food",
+        }
+        tasks = [resource_map[resource] for resource in vision_data if resource in resource_map]
+        return tasks
+
+    def guide_agent_actions(self, vision_data, inventory_status):
+        """
+        Generate a list of prioritized actions for the agent based on vision data.
+        """
+        tasks = self.analyze_vision_data(vision_data)
+        prioritized_tasks = []
+
+        # Check inventory constraints
+        if inventory_status["space"] < len(tasks):
+            tasks.append("Deposit items into chest")
+
+        # Prioritize tasks
+        for task in tasks:
+            if "Harvest wood" in task and inventory_status["tools"]["axe"]:
+                prioritized_tasks.append(task)
+            elif "Mine cobblestone" in task and inventory_status["tools"]["pickaxe"]:
+                prioritized_tasks.append(task)
+            else:
+                prioritized_tasks.append("Craft necessary tools")
+
+        return prioritized_tasks
+

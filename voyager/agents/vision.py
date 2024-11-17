@@ -1,4 +1,4 @@
-# TODO 3: Abstracting API Calls Using Adapters
+# TODO 3: Abstracting API Calls Using keys.js
 # Instead of handling each API (OpenAI, Anthropic) within VisionAgent, use an adapter pattern to encapsulate the differences between APIs. 
 # This way, each API call is defined in its own class, making it easier to add new vision APIs or swap out existing ones without modifying VisionAgent.
 
@@ -14,95 +14,133 @@ from langchain.chat_models import ChatOpenAI
 from langchain.schema import HumanMessage
 
 class VisionAgent:
-    def __init__(self, model_name="gpt-4-turbo-vision", temperature=0, request_timeout=120):
-        self.model_name = model_name  # Assign the model name here
-        self.temperature = temperature
-        self.request_timeout = request_timeout
-        
-        # Initialize the ChatGPT model
+    def __init__(
+        self,
+        model_name="gpt-4-turbo-vision", 
+        temperature=0, 
+        request_timout=120,
+        ckpt_dir="ckpt",
+        resume=False,
+        chat_log=True,
+        execution_error=True,
+    ):
+        self.ckpt_dir = ckpt_dir
+        self.chat_log = chat_log
+        self.execution_error = execution_error
+        U.f_mkdir(f"{ckpt_dir}/vision")
+        if resume:
+            print(f"\033[32mLoading Vision Agent from {ckpt_dir}/vision\033[0m")
+            self.vision_memory = U.load_json(f"{ckpt_dir}/vision/vision_memory.json")
+        else:
+            self.vision_memory = {}
+
         self.llm = ChatOpenAI(
-            model_name=self.model_name,
-            temperature=self.temperature,
-            request_timeout=self.request_timeout,
+            model_name=model_name,
+            temperature=temperature,
+            request_timeout=request_timout,
         )
 
-    def analyze_image(self, image_url):
-        """Send the image URL to ChatGPT for analysis."""
-        # Load the image from the specified path
-        image = cv2.imread(image_path)
-        if image is None:
-            raise ValueError("Image not found or could not be loaded.")
+        # # write a great prompt for the vision agent
+        # with open("/Users/daisysong/Desktop/CS194agent/Voyager_OAI/voyager/prompts/vision_template.txt", "r") as file:
+        #     self.prompt = file.read()
+   
+        # # Initialize the ChatGPT model
+        # self.llm = ChatOpenAI(
+        #     model_name=model_name,
+        #     temperature=temperature,
+        #     request_timeout=request_timout,
+        #     prompt=self.prompt
+        # )
 
-        # Convert the image to a format suitable for sending (e.g., base64)
-        _, buffer = cv2.imencode('.jpg', image)
-        image_data = buffer.tobytes()
+    def update_vision_memory(self, vision_data):
+        self.vision_memory.append(vision_data)
+        U.save_json(self.vision_memory, f"{self.ckpt_dir}/vision/vision_memory.json")
+        pass
+    def render_vision_message(self, image_path):
+        #return HumanMessage(content=self.prompt)
+        pass
+    def process_vision_message(self, message):
+        pass
 
-        prompt = "Analyze the following image and provide insights: [IMAGE]"
-        # Prepare the request body
+    def analyze_image(self, image_path):
+        """Send the image to GPT-4 Vision for analysis."""
+        # Open the image file in binary mode
+        with open(image_path, 'rb') as f:
+            image_data = f.read()
+
+        # Define the response format if not already defined
+        response_format = """
+        {
+            "optimal_block": {
+                "type": "string",
+                "position": {
+                    "x": "float",
+                    "y": "float",
+                    "z": "float"
+                }
+            },
+            "other_blocks": [
+                {
+                    "type": "string",
+                    "position": {
+                        "x": "float",
+                        "y": "float",
+                        "z": "float"
+                    }
+                },
+                ...
+            ]
+        }
+        """
+
+        prompt = f"""
+        You are a highly capable assistant designed to analyze vision data and assist in completing any specified Minecraft task.
+        Your role is to extract precise spatial insights from the provided visual data, enabling the AI bot to execute its tasks efficiently.
+
+        ### Task Instructions
+        1. **Enhanced Block Detection**:
+        - Identify and determine the exact position (`x, y, z`) of blocks relevant to the task (e.g., `spruce_log`).
+        - Prioritize the closest or most accessible block to the bot, providing coordinates for precise targeting.
+        - If multiple blocks are detected, assess proximity, accessibility, and clustering to identify the optimal block for interaction.
+        - Clearly describe the detected blocks, their positions, and any relevant contextual information in an organized format.
+
+        ### Response Guidelines
+        - Your responses must strictly adhere to the specified format for clear communication with the AI bot.
+
+        ### RESPONSE FORMAT:
+        {response_format}
+        """
+
+        # Prepare the messages with the prompt
         messages = [
             {"role": "system", "content": "You are a helpful assistant."},
-            {"role": "user", "content": [
-                {"type": "text", "text": prompt},
-                {"type": "image_url", "image_url": {"url": image_url}}
-            ]}
+            {"role": "user", "content": prompt}
         ]
-        
-        # Make the API call
-        response = self.llm.chat.completions.create(
-            model=self.model_name,
-            messages=messages,
-            max_tokens=2000
-        )
-        
+
+        # Make the API call with the image
+        try:
+            response = self.llm.chat.completions.create(
+                model=self.model_name,
+                messages=messages,
+                files={'image': image_data},
+                max_tokens=2000
+            )
+        except Exception as e:
+            raise RuntimeError(f"API call failed: {e}")
+
         return response
 
 # Example usage
 if __name__ == "__main__":
     vision_agent = VisionAgent()
-    insights = vision_agent.analyze_image("https://example.com/path/to/image.jpg")
-    image_path = "/Users/daisysong/Desktop/CS194agent/Voyager_OAI/logs/viewer_images/image.jpg"  # Update with your image path
+    image_path = "/Users/daisysong/Desktop/CS194agent/Voyager_OAI/logs/visions/logs/visions/screenshot-2024-11-17T01-37-14-716Z.jpg"  # Update with path to the current image most recently captured
     insights = vision_agent.analyze_image(image_path)
     print("Vision Agent Insights:", insights)
+    # save the insights to a file
+    with open("vision_insights.txt", "w") as file:
+        file.write(insights)
 
-#class VisionAgent:
-    def __init__(self, model_name="gpt-4", temperature=0, request_timeout=120):
-        self.model_name = model_name
-        self.temperature = temperature
-        self.request_timeout = request_timeout
-        
-        # Initialize the ChatGPT model
-        self.llm = ChatOpenAI(
-            model_name=self.model_name,
-            temperature=self.temperature,
-            request_timeout=self.request_timeout,
-        )
 
-    def analyze_image(self, image_path):
-        """Send the image to ChatGPT for analysis."""
-        with open(image_path, "rb") as image_file:
-            image_data = image_file.read()
-        
-        # Prepare the prompt for ChatGPT
-        prompt = "Analyze the following image and provide insights: [IMAGE]"
-        
-        # Send the image data to the ChatGPT API
-        response = self.llm.generate(
-            messages=[HumanMessage(content=prompt)],
-            files={"image": image_data}
-        )
-        
-        return response.content
-
-    def process_image(self, image_path):
-        """Main method to process the image and get insights from ChatGPT."""
-        insights = self.analyze_image(image_path)
-        return insights
-
-# Example usage
-# if __name__ == "__main__":
-#     vision_agent = VisionAgent()
-#     insights = vision_agent.process_image("/path/to/your/image.jpg")
-#     print("Vision Agent Insights:", insights)
 
 
 # import requests

@@ -30,3 +30,5 @@ canvas
 #brew install pkg-config cairo pango libpng jpeg giflib librsvg
 
 # prismarine-viewer itself provides a way to render Minecraft views directly to a canvas in Node.js, and you can extract image data from this canvas and save it as an image file.
+opencv-python 
+opencv-python-headless
