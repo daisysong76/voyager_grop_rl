@@ -3,6 +3,7 @@ from voyager.utils.json_utils import fix_and_parse_json
 from langchain.chat_models import ChatOpenAI
 #from langchain_anthropic import ChatAnthropic
 from langchain.schema import HumanMessage, SystemMessage
+#from voyager.agents.vision import VisionAgent
 
 # TODO: Create a new class within the file that uses the Graph RAG approach to retrieve relevant skills based on graph embeddings or scene graph queries.
 class CriticAgent:
@@ -12,12 +13,21 @@ class CriticAgent:
         temperature=0,
         request_timout=120,
         mode="auto",
+        #vision_agent: VisionAgent | None = None,
+        vision_agent=None,
     ):
+
         self.llm = ChatOpenAI(
             model_name=model_name,
             temperature=temperature,
             request_timeout=request_timout,
         )
+
+        # TODO: Modify the ActionAgent to use vision agent's insights for reasoning about actions.
+        # Evaluate task success in CriticAgent.
+        self.vision_agent = vision_agent
+        #vision_data = self.vision_agent.get_vision_memory() 
+
         assert mode in ["auto", "manual"]
         self.mode = mode
 

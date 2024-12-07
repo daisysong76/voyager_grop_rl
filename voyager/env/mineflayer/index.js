@@ -479,7 +479,6 @@ app.listen(PORT, () => {
 const puppeteer = require('puppeteer');
 const path = require('path');
 
-
 async function setupVisionCapture(bot) {
     const browser = await puppeteer.launch({ headless: false }); // Set headless to false for debugging
     const page = await browser.newPage();
@@ -490,8 +489,8 @@ async function setupVisionCapture(bot) {
     //await page.waitForSelector('#viewer-element');
 
     let lastCaptureTime = Date.now();
-    const captureInterval = 1000 / 2 
-    //16; // Approximately 62.5 ms for 16 fps
+    const captureInterval = 30000 //30 seconds
+    // /16; // Approximately 62.5 ms for 16 fps
 
     // Ensure the logging folder exists
     const loggingFolder = path.resolve('/Users/daisysong/Desktop/CS194agent/Voyager_OAI/logs/visions');
@@ -500,7 +499,7 @@ async function setupVisionCapture(bot) {
     }
 
     // Maximum number of frames to keep
-    const maxFrames = 1000; // Adjust this number based on your storage capacity
+    const maxFrames = 30; // Adjust this number based on your storage capacity
     const frameFiles = []; // Keep track of saved frame file names
     const sharp = require('sharp'); 
 
@@ -509,7 +508,10 @@ async function setupVisionCapture(bot) {
             console.log("Attempting to capture and save screenshot...");
             // Take screenshot and save to logging folder with compression
             const timestamp = new Date().toISOString().replace(/[:.]/g, '-'); // Make filename compatible
-            const screenshotFilename = `screenshot-${timestamp}.jpg`;
+            //const screenshotFilename = `screenshot-${timestamp}.jpg`;
+            // Assuming botId is defined somewhere in your code
+            //const screenshotFilename = `screenshot-bot${bot_Id}-${timestamp}.jpg`;
+            const screenshotFilename = `screenshot-bot-${timestamp}.jpg`;
             const screenshotPath = path.join(loggingFolder, screenshotFilename);
 
             await page.screenshot({
@@ -544,7 +546,8 @@ async function setupVisionCapture(bot) {
             };
 
             // Save metadata asynchronously
-            const metadataFilename = `metadata-${timestamp}.json`;
+            //const metadataFilename = `metadata-bot${bot_Id}-${timestamp}.json`;
+            const metadataFilename = `metadata-bot-${timestamp}.json`;
             const metadataPath = path.join(loggingFolder, metadataFilename);
 
             fs.writeFile(metadataPath, JSON.stringify(metadata, null, 2), (err) => {
@@ -559,23 +562,23 @@ async function setupVisionCapture(bot) {
             frameFiles.push({ screenshot: screenshotPath, metadata: metadataPath });
 
             // Manage disk space by deleting old frames
-            // if (frameFiles.length > maxFrames) {
-            //     const oldFrame = frameFiles.shift();
-            //     fs.unlink(oldFrame.screenshot, (err) => {
-            //         if (err) {
-            //             console.error('Error deleting old screenshot:', err);
-            //         } else {
-            //             console.log(`Old screenshot deleted: ${oldFrame.screenshot}`);
-            //         }
-            //     });
-            //     fs.unlink(oldFrame.metadata, (err) => {
-            //         if (err) {
-            //             console.error('Error deleting old metadata:', err);
-            //         } else {
-            //             console.log(`Old metadata deleted: ${oldFrame.metadata}`);
-            //         }
-            //     });
-            // }
+            if (frameFiles.length > maxFrames) {
+                const oldFrame = frameFiles.shift();
+                fs.unlink(oldFrame.screenshot, (err) => {
+                    if (err) {
+                        console.error('Error deleting old screenshot:', err);
+                    } else {
+                        console.log(`Old screenshot deleted: ${oldFrame.screenshot}`);
+                    }
+                });
+                fs.unlink(oldFrame.metadata, (err) => {
+                    if (err) {
+                        console.error('Error deleting old metadata:', err);
+                    } else {
+                        console.log(`Old metadata deleted: ${oldFrame.metadata}`);
+                    }
+                });
+            }
 
             console.log(`Screenshot saved: ${screenshotPath}`);
 

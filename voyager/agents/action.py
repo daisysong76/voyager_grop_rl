@@ -6,7 +6,7 @@ from langchain.chat_models import ChatOpenAI
 #from langchain_anthropic import ChatAnthropic
 from langchain.prompts import SystemMessagePromptTemplate
 from langchain.schema import AIMessage, HumanMessage, SystemMessage
-
+#from voyager.agents.vision import VisionAgent
 #model_name = ChatAnthropic(model="claude-3.5", temperature=0.7, max_tokens=512)
 
 from voyager.prompts import load_prompt
@@ -29,7 +29,6 @@ from voyager.control_primitives_context import load_control_primitives_context
 # End of new code
 #  """
 
-# TODO: Modify the ActionAgent to use scene graph queries for reasoning about actions.
 class ActionAgent:
     def __init__(
         self,
@@ -40,6 +39,8 @@ class ActionAgent:
         resume=False,
         chat_log=True,
         execution_error=True,
+        #vision_agent: VisionAgent | None = None,
+        vision_agent=None,
     ):
         # TODO: Add a parameter to the constructor for the Graph RAG approach
         # self.scene_graph = scene_graph()  # Initialize the scene graph in the action agent
@@ -57,6 +58,13 @@ class ActionAgent:
             temperature=temperature,
             request_timeout=request_timout,
         )
+
+        # TODO: Modify the ActionAgent to use vision agent's insights for reasoning about actions.
+        # Improve navigation and interaction in ActionAgent.
+        print("\033[33mActionAgent initializing VisionAgent\033[0m")
+        self.vision_agent = vision_agent
+        print("\033[33mActionAgent getting vision_memory\033[0m")
+        vision_data = self.vision_agent.get_vision_memory()
 
     def update_chest_memory(self, chests):
         for position, chest in chests.items():
@@ -206,9 +214,9 @@ class ActionAgent:
             observation += self.render_chest_observation()
 
         # TODO 2: Visual analysis if VisionAgent is available
-        if self.vision_agent:
-            visual_context = self.vision_agent.capture_and_analyze("path_to_image.png")
-            observation += f"Visual Analysis:\n{visual_context}\n\n"
+        # if self.vision_agent:
+        #     visual_context = self.vision_agent.capture_and_analyze("path_to_image.png")
+        #     observation += f"Visual Analysis:\n{visual_context}\n\n"
 
         observation += f"Task: {task}\n\n"
 

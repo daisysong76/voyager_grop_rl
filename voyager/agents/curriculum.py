@@ -1,13 +1,16 @@
 # TODO 2: to add Hierarchical planner that decomposes complex tasks
 # Environment-Aware Task Selection
-# Enhanced Contextual Awareness: By integrating VisionAgent, CurriculumAgent can “see” the current environment and tailor tasks that make sense in the immediate context. For example, if the visual input detects trees, CurriculumAgent might prioritize wood-gathering tasks, avoiding irrelevant tasks like mining if no ores are visible.
+# Enhanced Contextual Awareness: By integrating VisionAgent, CurriculumAgent can “see” the current environment and tailor tasks that make sense in the immediate context. 
+# For example, if the visual input detects trees, CurriculumAgent might prioritize wood-gathering tasks, avoiding irrelevant tasks like mining if no ores are visible.
 # Dynamic Task Adjustment: This lets CurriculumAgent dynamically adapt the task list based on what’s actually available or visible in the environment, leading to more efficient exploration and skill-building.
-
+# Task Planning:
+# Use the Vision Agent to provide spatial information for better task planning:
+    
 from __future__ import annotations
-
+import os
 import random
 import re
-
+import json
 import voyager.utils as U
 from voyager.prompts import load_prompt
 from voyager.utils.json_utils import fix_and_parse_json
@@ -18,6 +21,8 @@ from langchain_community.embeddings import OpenAIEmbeddings
 from langchain.schema import HumanMessage, SystemMessage
 from langchain.vectorstores import Chroma
 
+from voyager.agents.vision import VisionAgent
+#from vision import VisionAgent # TODO 2: add vision agent to provide spatial information for better task planning
 # TODO 2: Create a new class within the file that uses the Graph RAG approach to retrieve relevant skills based on graph embeddings or scene graph queries.
 
 class CurriculumAgent:
@@ -33,6 +38,8 @@ class CurriculumAgent:
         mode="auto",
         warm_up=None,
         core_inventory_items: str | None = None,
+        vision_agent: VisionAgent | None = None, # TODO 2: add vision agent to provide spatial information for better task planning
+        #vision_agent=None,
     ):
         self.llm = ChatOpenAI(
             model_name=model_name,
@@ -44,6 +51,16 @@ class CurriculumAgent:
             temperature=qa_temperature,
             request_timeout=request_timout,
         )
+
+        # TODO 2: add vision agent to provide spatial information for better task planning
+        self.vision_agent = vision_agent 
+        # or VisionAgent(
+        #     model_name="gpt-4-turbo",  # VisionAgent model
+        #     temperature=0,
+        #     ckpt_dir=ckpt_dir,
+        #     resume=resume,
+        # )
+
         assert mode in [
             "auto",
             "manual",
@@ -117,6 +134,13 @@ class CurriculumAgent:
         }
 
     @property
+    # TODO 2: add vision agent to provide spatial information for better task planning
+    # TODO 2: add graph rag to provide retrieval-augmented reasoning for better task planning
+    # TODO 2: add long-term memory to provide long-term planning for better task planning
+    # TODO 2: add hierarchical planner to decompose complex tasks
+    # TODO 2: add dynamic task allocation to improve collaboration and adaptability
+    # TODO 2: add multi-modal perception to provide richer environmental understanding
+   
     def curriculum_observations(self):
         return [
             "context",
@@ -143,7 +167,11 @@ class CurriculumAgent:
         system_message = SystemMessage(content=load_prompt("curriculum"))
         assert isinstance(system_message, SystemMessage)
         return system_message
-
+   
+    """Integrate Vision Insights into Observations
+    # Modification: Enhance Observations
+    # In the render_observation method, include the VisionAgent's analyzed spatial data. This ensures tasks proposed by CurriculumAgent are informed by visual information.
+    """
     def render_observation(self, *, events, chest_observation):
         assert events[-1][0] == "observe", "Last event must be observe"
         event = events[-1][1]
@@ -195,6 +223,13 @@ class CurriculumAgent:
                 for k, v in inventory.items()
                 if self._core_inv_items_regex.search(k) is not None
             }
+        
+        # TODO 2: integrate vision agent's insights into observations
+        # vision_insights = self.vision_agent.get_insights(voxels, block_records, entities)
+        # print(f"Vision Insights: {vision_insights}")
+       
+        vision_data = self.vision_agent.vision_memory if self.vision_agent else {}
+        vision_observation = f"Vision Data: {json.dumps(vision_data, indent=2)}\n\n"
 
         observation = {
             "context": "",
@@ -211,6 +246,7 @@ class CurriculumAgent:
             "chests": chest_observation,
             "completed_tasks": f"Completed tasks so far: {completed_tasks}\n\n",
             "failed_tasks": f"Failed tasks that are too hard: {failed_tasks}\n\n",
+            "vision_insights": vision_observation, # TODO 2: integrate vision agent's insights into observations
         }
         return observation
 
@@ -246,9 +282,34 @@ class CurriculumAgent:
         return HumanMessage(content=content)
 
     def propose_next_task(self, *, events, chest_observation, max_retries=5):
+        # TODO 2: integrate vision agent's insights into task planning
+        # vision_insights = self.vision_agent.get_insights(voxels, block_records, entities)
+        # print(f"Vision Insights: {vision_insights}")
+        # Analyze the current visual environment using VisionAgent
+    
+        #vision_agent = VisionAgent()  # Create an instance of VisionAgent
+        image_directory = "/Users/daisysong/Desktop/CS194agent/Voyager_OAI/logs/visions/"
+        image_files = [f for f in os.listdir(image_directory) if f.endswith(('.png', '.jpg', '.jpeg'))]
+        if image_files:  
+            image_path = os.path.join(image_directory, image_files[0])  # Define image_path
+            insights = self.vision_agent.analyze_image(image_path)
+        else:
+            print("No image files found in the directory.")
+            insights = None 
+            # need to catch the vision screenshot firstly
+            #insights = self.vision_agent.analyze_image(image_path)
+        print("Vision Agent Insights:", insights)
+        vision_data = self.vision_agent.get_vision_memory() 
+
+        # original code
         if self.progress == 0 and self.mode == "auto":
             task = "Mine 1 wood log"
-            context = "You can mine one of oak, birch, spruce, jungle, acacia, dark oak, or mangrove logs."
+            #context = "You can mine one of oak, birch, spruce, jungle, acacia, dark oak, or mangrove logs."
+            # TODO 2: integrate vision agent's insights into task planning
+            context = (
+                "You can mine one of oak, birch, spruce, jungle, acacia, dark oak, or mangrove logs.\n"
+                f"Vision Data: {json.dumps(vision_data, indent=2)}"
+            )
             return task, context
 
         # hard code task when inventory is almost full

@@ -11,6 +11,7 @@ from langchain.vectorstores import Chroma
 
 from voyager.prompts import load_prompt
 from voyager.control_primitives import load_control_primitives
+#from voyager.agents.vision import VisionAgent
 # TODO 1: from utils.scene_graph import SceneGraph  # Import the SceneGraph if not already done
 # TODO 1: Create a new class within the file that uses the Graph RAG approach to retrieve relevant skills based on graph embeddings or scene graph queries.
 # from dspy.graph import Graph
@@ -47,6 +48,8 @@ class SkillManager:
         request_timout=120,
         ckpt_dir="ckpt",
         resume=False,
+        #vision_agent: VisionAgent | None = None,
+        vision_agent=None,
     ):
         #TODO 1: Add a parameter to the constructor for the Graph RAG approach
         # self.scene_graph = scene_graph()  # Initialize the scene graph in the skill manager
@@ -119,7 +122,7 @@ class SkillManager:
         # """
         # end of added code for TODO 2
         # """
-
+        self.vision_agent = vision_agent
 
         self.llm = ChatOpenAI(
             model_name=model_name,

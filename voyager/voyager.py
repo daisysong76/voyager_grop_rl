@@ -11,6 +11,8 @@ from .agents import ActionAgent
 from .agents import CriticAgent
 from .agents import CurriculumAgent
 from .agents import SkillManager
+from .agents import VisionAgent
+
 # TODO 1: should I add it to skillmanager?
 # from utils.graph_rag_manager import GraphRAGManager
 
@@ -44,6 +46,12 @@ class Voyager:
         max_iterations: int = 160,
         reset_placed_if_failed: bool = False,
      
+        vision_agent_model_name: str = "gpt-4-turbo",
+        vision_agent_temperature: float = 0,
+        # TODO 2: add vision agent qa model name
+        vision_agent_qa_model_name: str = "gpt-4",
+        vision_agent_qa_temperature: float = 0,
+
         action_agent_model_name: str = "gpt-4",
         action_agent_temperature: float = 0,
         action_agent_task_max_retries: int = 4,
@@ -159,13 +167,23 @@ class Voyager:
 
         # set openai api key
         os.environ["OPENAI_API_KEY"] = openai_api_key
-        """
-        add claude api key
-        """
         #TODO change to claude api key
         #os.environ["ANTHROPIC_API_KEY"] = ANTHROPIC_API_KEY
 
         # init agents
+        # Receive the task and context from the Curriculum Agent.
+        # Consult the Vision Agent for visual data analysis relevant to the task.
+        # Plan the actions required to complete the task based on both the curriculum and visual insights.
+        # Execute the actions in the environment and collect results.
+        self.vision_agent = VisionAgent(
+            model_name=vision_agent_model_name,
+            temperature=vision_agent_temperature,
+            request_timout=openai_api_request_timeout,
+            ckpt_dir=ckpt_dir,
+            resume=resume,
+        )
+        self.vision_agent_rollout_num_iter = -1
+
         self.action_agent = ActionAgent(
             # action agent is the iterative prompting mechanism in paper
             # TODO 1: Add Graph RAG for Retrieval-Augmented Reasoning
@@ -176,9 +194,14 @@ class Voyager:
             resume=resume,
             chat_log=action_agent_show_chat_log,
             execution_error=action_agent_show_execution_error,
-            # TODO 1: scene_graph=scene_graph,  # Initialize the scene graph in the action agent
+            vision_agent=self.vision_agent,
         )
         self.action_agent_task_max_retries = action_agent_task_max_retries
+        
+        # Role: Proposes tasks based on the current state of the environment and the agent's learning progress.
+        # Analyze the current context and previous tasks completed.
+        # Propose the next task to the Action Agent, which may include visual tasks that require input from the Vision Agent.
+        # Provide context and any necessary instructions for the task.
         self.curriculum_agent = CurriculumAgent(
             model_name=curriculum_agent_model_name,
             temperature=curriculum_agent_temperature,
@@ -190,15 +213,23 @@ class Voyager:
             mode=curriculum_agent_mode,
             warm_up=curriculum_agent_warm_up,
             core_inventory_items=curriculum_agent_core_inventory_items,
-            # TODO 1: scene_graph=scene_graph,  # Initialize the scene graph in the curriculum agent
+            # TODO 2: how to debug if this following vision_agent was called?
+            vision_agent=self.vision_agent,
         )
+
+        # Actions:
+        # Receive the results from the Action Agent, including any visual data processed.
+        # Assess the success of the task based on predefined criteria, including visual accuracy.
+        # Provide feedback to the Action Agent regarding its performance, particularly in relation to visual tasks.
+
         self.critic_agent = CriticAgent(
             model_name=critic_agent_model_name,
             temperature=critic_agent_temperature,
             request_timout=openai_api_request_timeout,
             mode=critic_agent_mode,
-            # TODO 1: scene_graph=scene_graph,  # Initialize the scene graph in the critic agent
+            vision_agent=self.vision_agent,
         )
+
         self.skill_manager = SkillManager(
             # TODO 1: Add Graph RAG for Retrieval-Augmented Reasoning
             model_name=skill_manager_model_name,
@@ -207,7 +238,7 @@ class Voyager:
             request_timout=openai_api_request_timeout,
             ckpt_dir=skill_library_dir if skill_library_dir else ckpt_dir,
             resume=True if resume or skill_library_dir else False,
-            # TODO 1: scene_graph=scene_graph,  # Initialize the scene graph in the skill manager
+            vision_agent=self.vision_agent,
         )
         self.recorder = U.EventRecorder(ckpt_dir=ckpt_dir, resume=resume)
         self.resume = resume
@@ -219,21 +250,10 @@ class Voyager:
         self.messages = None
         self.conversations = []
         self.last_events = None
+        #self.vision_agent_rollout_num_iter = -1
 
         # Modify checkpoint dir to be unique per bot
         self.ckpt_dir = os.path.join(ckpt_dir, f"bot_{bot_id}")
-
-    # TODO 1: Add Graph RAG for Retrieval-Augmented Reasoning
-    # def execute_task(self, instruction):
-    #     # Step 1: Parse instruction
-    #     parsed_instruction = self.instruction_learner.parse_instruction(instruction)
-    #     # Step 2: Retrieve context with Graph RAG
-    #     context_docs = self.graph_rag_manager.retrieve_with_graph(parsed_instruction)
-    #     # Step 3: Use the context and parsed instruction to inform decision-making
-    #     result = self.make_decision(parsed_instruction, context_docs)
-    #     return result
-    
-   
 
     def reset(self, task, context="", reset_env=True):
         self.action_agent_rollout_num_iter = 0
@@ -359,6 +379,11 @@ class Voyager:
         return self.messages, 0, done, info
 
     def rollout(self, *, task, context, reset_env=True):
+        # TODO 2: Add a vision agent to the rollout
+        # Capture image for analysis at the start of the rollout
+        # image_data 
+        # vision_analysis = self.vision_agent.analyze_image(image_data)
+
         self.reset(task=task, context=context, reset_env=reset_env)
         while True:
             messages, reward, done, info = self.step()
@@ -483,3 +508,174 @@ class Voyager:
             print(
                 f"\033[35mFailed tasks: {', '.join(self.curriculum_agent.failed_tasks)}\033[0m"
             )
+
+   
+    # TODO 3: add more functions to interact with the environment and communicate with the agent
+    # def send_message(self, message):
+    #     self.env.step(f"bot.chat(`{message}`);\n")
+
+    # def receive_message(self, message):
+    #     self.env.step(f"bot.chat(`{message}`);\n")
+
+    # def process_message(self, message):
+    #     self.env.step(f"bot.chat(`{message}`);\n")
+    
+    # def cooperate(self, message):
+    #     # Example task cooperation
+    #     self.send_message("I need data for task X.", other_bot)
+    #     # Wait for a response and process it
+    #     # Implement logic to handle the response and complete the task
+    #     self.env.step(f"bot.chat(`{message}`);\n")
+
+    # # def get_inventory(self):
+    # #     return self.env.step("bot.getInventory();\n")
+
+    # # def get_equipment(self):
+    # #     return self.env.step("bot.getEquipment();\n")
+    # def move_to(self, position):
+    #     self.env.step(f"bot.moveTo({position});\n")
+
+    # def get_position(self):
+    #     return self.env.step("bot.getPosition();\n")
+   
+
+# 1. Collaborative Learning
+# Description: This approach allows multiple agents to work together, share insights, and critique one another, leading to solutions that exceed what any single agent could achieve in isolation. Collaborative learning enhances problem-solving capabilities by enabling agents to debate ideas and split tasks effectively.
+# Cutting-Edge Aspects:
+# Integration with Large Language Models (LLMs): The use of LLMs in conjunction with MAS can significantly improve the quality of results, as agents can leverage the advanced capabilities of LLMs for understanding context and semantics.
+# Dynamic Adaptation: Agents can adapt their strategies based on real-time feedback from their peers, leading to more robust and flexible solutions in complex environments.
+# Applications: This approach is particularly promising in fields like automated negotiation in e-commerce, swarm robotics, and environmental monitoring, where agents can learn from each other and improve their collective performance.
+# 2. Advanced Reasoning, Planning, and Problem-Solving
+# Description: Equipping agents with higher-level cognitive skills allows them to break down complex problems and adapt to changing circumstances. This approach enhances the agents' ability to handle multifaceted tasks and improves their adaptability in dynamic environments.
+# Cutting-Edge Aspects:
+# Hierarchical Planning: Implementing hierarchical planning systems enables agents to manage complex tasks by breaking them down into smaller, manageable subtasks, which can be executed concurrently.
+# Scenario Simulation: Using advanced simulation tools allows agents to plan for various contingencies, improving their ability to adapt to unexpected changes in the environment.
+# Applications: This approach is particularly relevant in areas such as smart city management, disaster response, and complex supply chain optimization, where agents must navigate intricate scenarios and make informed decisions.
+# Conclusion
+# Both Collaborative Learning and Advanced Reasoning, Planning, and Problem-Solving represent cutting-edge approaches in the field of multi-agent systems. They leverage the latest advancements in AI and machine learning to enhance the capabilities of autonomous agents, enabling them to tackle complex, real-world challenges more effectively. As these technologies continue to evolve, they will likely play a pivotal role in shaping the future of intelligent systems across various industries.
+#    1. Collaborative Learning
+# Description: Allowing agents to work together, critique one another, and share insights can lead to solutions that exceed what any single agent could achieve in isolation. This approach fosters a more comprehensive understanding of complex problems and encourages creative solutions.
+# Benefits: By leveraging the strengths of each agent, the system can explore a wider range of possibilities and uncover innovative approaches that individual agents might overlook. This collaborative dynamic can significantly enhance the overall capabilities of the multi-agent system.
+# Implementation: For example, a framework where a more advanced agent (like a GPT-4) mentors less advanced agents (like GPT-3.5) can accelerate learning and improve task execution efficiency.
+# 2. Dynamic Task Allocation
+# Description: Implementing adaptive task assignment allows the Curriculum Agent to dynamically allocate tasks based on the current workload and performance of each agent. This flexibility can help balance the workload and optimize resource utilization.
+# Benefits: By ensuring that tasks are assigned to the most suitable agents based on their current capabilities and context, the system can improve efficiency and effectiveness in task execution. This approach also allows for better handling of unexpected changes in the environment or agent performance.
+# Implementation: For instance, if one agent is overloaded or underperforming, the system can reassign tasks to other agents that are better equipped to handle them at that moment.
+# 3. Advanced Reasoning, Planning, and Problem-Solving
+# Description: Equipping agents with higher-level cognitive skills, such as the ability to break down complex problems and adapt to changing circumstances, can expand the range and sophistication of tasks they can tackle.
+# Benefits: This approach enhances the agents' ability to handle multifaceted tasks and improves their adaptability in dynamic environments. Techniques like chain-of-thought prompting and multi-agent debate can facilitate deeper reasoning and more effective problem-solving.
+# Implementation: By integrating advanced reasoning capabilities, agents can better understand the context of their tasks, anticipate challenges, and devise more effective strategies for task completion.
+
+# 1. Enhanced Communication Protocols
+# Implement Real-Time Messaging: Use a robust messaging system (like WebSockets or message queues) to facilitate real-time communication between agents. This allows for quicker updates and responses.
+# Standardize Message Formats: Define clear message formats and protocols for communication to ensure that all agents understand the information being exchanged.
+# 2. Dynamic Task Allocation
+# Adaptive Task Assignment: Allow the Curriculum Agent to dynamically assign tasks based on the current workload and performance of each agent. This can help balance the workload and optimize resource utilization.
+# Agent Specialization: Encourage agents to specialize in certain tasks based on their strengths and past performance, allowing for more efficient task execution.
+# 3. Feedback Loops and Continuous Learning
+# Implement Continuous Feedback Mechanisms: Create a system where agents can provide feedback to each other after task completion. This can help improve future performance and decision-making.
+# Utilize Reinforcement Learning: Incorporate reinforcement learning techniques to allow agents to learn from their successes and failures over time, adapting their strategies accordingly.
+# 4. Reflection and Self-Assessment
+# Integrate Reflection Mechanisms: Allow agents to periodically review their own performance and outputs. This can help them identify areas for improvement and refine their strategies.
+# Peer Review System: Implement a peer review system where agents can evaluate each other's outputs, providing constructive feedback and suggestions for improvement.
+# 5. Utilize Advanced Planning Techniques
+# Hierarchical Planning: Implement a hierarchical planning system where complex tasks are broken down into smaller subtasks, allowing agents to focus on manageable components.
+# Scenario Simulation: Use scenario simulation tools to allow agents to plan for various contingencies, improving their ability to adapt to unexpected changes in the environment.
+# 6. Incorporate Predictive Analytics
+# Data-Driven Decision Making: Use predictive analytics to analyze historical data and forecast future outcomes. This can help agents make more informed decisions and anticipate potential challenges.
+# Real-Time Data Integration: Ensure that agents have access to real-time data to inform their actions and decisions, enhancing their responsiveness to changing conditions.
+# 7. Improve Skill Management
+# Skill Inventory System: Maintain a comprehensive inventory of skills and capabilities for each agent. This can help the Skill Manager identify gaps and recommend training or skill acquisition.
+# Cross-Training Opportunities: Encourage cross-training among agents to enhance their versatility and ability to handle a wider range of tasks.
+# 8. Implement Conflict Resolution Mechanisms
+# Negotiation Protocols: Develop negotiation protocols for agents to resolve conflicts over resources or task assignments, ensuring smooth collaboration.
+# Priority-Based Task Management: Establish a priority system for tasks to help agents determine which tasks to focus on first, reducing potential conflicts.
+# 9. Monitor and Evaluate Performance
+# Performance Metrics: Define clear performance metrics for each agent and regularly evaluate their effectiveness. Use these metrics to inform adjustments to the workflow.
+# Dashboard for Monitoring: Create a centralized dashboard to monitor the status and performance of all agents in real-time, allowing for quick identification of issues.
+# 10. Foster Collaboration and Teamwork
+# Team-Based Objectives: Set team-based objectives that require collaboration among agents, encouraging them to work together towards common goals.
+# Shared Knowledge Base: Develop a shared knowledge base where agents can access information, best practices, and lessons learned from previous tasks.
+
+#     Workflow Overview
+# Curriculum Agent:
+# Role: Proposes tasks based on the current state of the environment and the agent's learning progress.
+# Actions:
+# Analyze the current context and previous tasks completed.
+# Propose the next task to the Action Agent.
+# Provide context and any necessary instructions for the task.
+# Action Agent:
+# Role: Executes the task proposed by the Curriculum Agent.
+# Actions:
+# Receive the task and context from the Curriculum Agent.
+# Plan the actions required to complete the task.
+# Execute the actions in the environment.
+# Collect results and feedback from the environment.
+# Critic Agent:
+# Role: Evaluates the performance of the Action Agent after task execution.
+# Actions:
+# Receive the results from the Action Agent.
+# Assess the success of the task based on predefined criteria (e.g., success metrics, quality of output).
+# Provide feedback to the Action Agent regarding its performance.
+# Suggest improvements or adjustments for future tasks.
+# Skill Manager:
+# Role: Manages the skills and capabilities of the Action Agent.
+# Actions:
+# Monitor the skills utilized in the Action Agent's actions.
+# Update the skill library based on the skills used and their effectiveness.
+# Provide feedback to the Action Agent on its skill usage.
+# Facilitate learning and adaptation by suggesting new skills based on the tasks proposed by the Curriculum Agent.
+# Detailed Workflow Steps
+# Task Proposal:
+# The Curriculum Agent analyzes the current state and proposes a new task to the Action Agent.
+# Example: "Your next task is to gather resources from the specified location."
+# 2. Task Execution:
+# The Action Agent receives the task and context, plans the necessary actions, and executes them in the environment.
+# Example: The Action Agent moves to the specified location and collects resources.
+# 3. Performance Evaluation:
+# After task execution, the Action Agent sends the results to the Critic Agent.
+# Example: "I collected 10 resources from the location."
+# Feedback and Improvement:
+# The Critic Agent evaluates the results against success criteria and provides feedback.
+# Example: "You successfully collected the resources, but you could improve your efficiency by using a different route next time."
+# 5. Skill Management:
+# The Skill Manager reviews the skills used during the task and updates the Action Agent's skill set based on the Critic's feedback.
+# Example: "The Action Agent should learn a new skill for faster navigation."
+# Iterative Learning:
+# The Curriculum Agent proposes new tasks based on the updated skills and the overall learning progress of the agents.
+# Example: "Now that you have improved your navigation skills, your next task is to explore a new area."
+
+
+ # TODO 1: Add Graph RAG for Retrieval-Augmented Reasoning
+    # def execute_task(self, instruction):
+    #     # Step 1: Parse instruction
+    #     parsed_instruction = self.instruction_learner.parse_instruction(instruction)
+    #     # Step 2: Retrieve context with Graph RAG
+    #     context_docs = self.graph_rag_manager.retrieve_with_graph(parsed_instruction)
+    #     # Step 3: Use the context and parsed instruction to inform decision-making
+    #     result = self.make_decision(parsed_instruction, context_docs)
+    #     return result
+
+
+#     Breakdown of the inference Function
+# 1. Parameters:
+# task: An optional parameter representing the main task to be executed.
+# sub_goals: A list of sub-goals that need to be achieved as part of the task.
+# reset_mode: A string indicating how the environment should be reset (e.g., "hard" or "soft").
+# reset_env: A boolean indicating whether the environment should be reset before starting the inference process.
+# 2. Initial Checks:
+# The function first checks if either task or sub_goals is provided. If neither is provided, it raises a ValueError.
+# If sub_goals is not provided, it calls the decompose_task method to generate sub-goals based on the main task.
+# 3. Environment Reset:
+# The environment is reset using the specified reset_mode and env_wait_ticks. This prepares the environment for the new task execution.
+# Task Tracking:
+# The function initializes lists to track completed and failed tasks by the curriculum_agent.
+# 5. Execution Loop:
+# The function enters a loop that continues until all sub-goals are completed. Within this loop:
+# It retrieves the next sub-goal and its context.
+# It prints a message indicating the start of the task.
+# It calls the rollout method to execute the current sub-goal, passing the task and context.
+# It updates the exploration progress of the curriculum_agent based on the results of the rollout.
+# It prints the completed and failed tasks.
+# 6. Return Value:
+# The function returns the results of the inference process, which may include information about the tasks that were completed, failed, and any other relevant data.
