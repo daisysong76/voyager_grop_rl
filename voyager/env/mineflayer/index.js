@@ -273,7 +273,7 @@ app.post("/step", async (req, res) => {
         }
     }
 
-    bot.on("physicTick", onTick);
+    bot.on("physicsTick", onTick);
 
     // initialize fail count
     let _craftItemFailCount = 0;
@@ -299,7 +299,7 @@ app.post("/step", async (req, res) => {
         response_sent = true;
         res.json(bot.observe());
     }
-    bot.removeListener("physicTick", onTick);
+    bot.removeListener("physicsTick", onTick);
 
     async function evaluateCode(code, programs) {
         // Echo the code produced for players to see it. Don't echo when the bot code is already producing dialog or it will double echo
@@ -521,13 +521,13 @@ async function setupVisionCapture(bot) {
             });
             // new add
             // Convert the screenshot to grayscale using sharp
-            //const grayscalePath = path.join(loggingFolder, `screenshot_bw-${timestamp}.jpg`);
-            await sharp(screenshotPath)
-                .grayscale() // Convert to grayscale
-                .toFile(grayscalePath); // Save the grayscale image
+            // const grayscalePath = path.join(loggingFolder, `screenshot_bw-${timestamp}.jpg`);
+            // await sharp(screenshotPath)
+            //     .grayscale() // Convert to grayscale
+            //     .toFile(grayscalePath); // Save the grayscale image
 
-            console.log(`Grayscale screenshot saved: ${grayscalePath}`);
-            // new add
+            // console.log(`Grayscale screenshot saved: ${grayscalePath}`);
+            // // new add
 
             // Collect metadata
             const metadata = {

@@ -178,7 +178,7 @@ class Voyager:
         self.vision_agent = VisionAgent(
             model_name=vision_agent_model_name,
             temperature=vision_agent_temperature,
-            request_timout=openai_api_request_timeout,
+            request_timeout=openai_api_request_timeout,
             ckpt_dir=ckpt_dir,
             resume=resume,
         )

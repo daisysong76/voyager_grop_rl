@@ -6,28 +6,11 @@ from langchain.chat_models import ChatOpenAI
 #from langchain_anthropic import ChatAnthropic
 from langchain.prompts import SystemMessagePromptTemplate
 from langchain.schema import AIMessage, HumanMessage, SystemMessage
-#from voyager.agents.vision import VisionAgent
+from voyager.agents.vision import VisionAgent
 #model_name = ChatAnthropic(model="claude-3.5", temperature=0.7, max_tokens=512)
 
 from voyager.prompts import load_prompt
 from voyager.control_primitives_context import load_control_primitives_context
-
-
-# # TODO 2: Initialize DSPy prompt optimizer
-# self.prompt_optimizer = VoyagerPromptOptimizer(
-#     model_name="Claude Sonnet 3.5",
-#     temperature=0.5,
-#     max_iterations=3,
-# )
-# def step(self):
-#     # Optimize prompt before sending to the agent
-#     optimized_prompt = self.prompt_optimizer.optimize(self.messages)
-#     ai_message = self.action_agent.llm(optimized_prompt)
-#     # TODO 2: Rest of the code...
-
-# """
-# End of new code
-#  """
 
 class ActionAgent:
     def __init__(
@@ -61,8 +44,12 @@ class ActionAgent:
 
         # TODO: Modify the ActionAgent to use vision agent's insights for reasoning about actions.
         # Improve navigation and interaction in ActionAgent.
-        print("\033[33mActionAgent initializing VisionAgent\033[0m")
-        self.vision_agent = vision_agent
+         # Use the passed vision_agent if provided, otherwise create a new instance
+        if vision_agent is None:
+            print("\033[33mActionAgent initializing VisionAgent\033[0m")
+            self.vision_agent = VisionAgent()  # Create a new instance if none is provided
+        else:
+            self.vision_agent = vision_agent  # Use the provided instance
         print("\033[33mActionAgent getting vision_memory\033[0m")
         vision_data = self.vision_agent.get_vision_memory()
 
