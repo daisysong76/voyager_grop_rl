@@ -1,3 +1,4 @@
+import json
 import re
 import time
 import voyager.utils as U
@@ -22,7 +23,6 @@ class ActionAgent:
         resume=False,
         chat_log=True,
         execution_error=True,
-        #vision_agent: VisionAgent | None = None,
         vision_agent=None,
     ):
         # TODO: Add a parameter to the constructor for the Graph RAG approach
@@ -204,6 +204,12 @@ class ActionAgent:
         # if self.vision_agent:
         #     visual_context = self.vision_agent.capture_and_analyze("path_to_image.png")
         #     observation += f"Visual Analysis:\n{visual_context}\n\n"
+        # Fetch the latest vision data
+        vision_data = self.vision_agent.get_vision_memory()
+        formatted_vision_data = json.dumps(vision_data, indent=2)
+
+        # Incorporate vision data into the observation
+        observation += f"Vision Data:\n{formatted_vision_data}\n\n"
 
         observation += f"Task: {task}\n\n"
 
@@ -307,19 +313,68 @@ class ActionAgent:
     #     # Use the nearby objects and other relationships for reasoning
     #     pass
 
+    # def analyze_vision_data(self, vision_data):
+    #     """
+    #     Parse vision data to identify resources and prioritize tasks.
+    #     """
+    #     resource_map = {
+    #         "tree": "Harvest wood",
+    #         "exposed_stone": "Mine cobblestone",
+    #         "water": "Collect water bucket",
+    #         "vegetation": "Gather seeds or food",
+    #     }
+    #     tasks = [resource_map[resource] for resource in vision_data if resource in resource_map]
+    #     return tasks
     def analyze_vision_data(self, vision_data):
         """
         Parse vision data to identify resources and prioritize tasks.
         """
-        resource_map = {
-            "tree": "Harvest wood",
-            "exposed_stone": "Mine cobblestone",
-            "water": "Collect water bucket",
-            "vegetation": "Gather seeds or food",
-        }
-        tasks = [resource_map[resource] for resource in vision_data if resource in resource_map]
+        tasks = []
+
+        for timestamp, data in vision_data.items():
+            # Analyze optimal_block
+            optimal_block = data.get("optimal_block", {})
+            block_type = optimal_block.get("type", "")
+            if block_type.endswith("_log"):
+                tasks.append("Harvest wood")
+
+            # Analyze other_blocks
+            for block in data.get("other_blocks", []):
+                block_type = block.get("type", "")
+                if block_type == "exposed_stone":
+                    tasks.append("Mine cobblestone")
+                elif block_type == "water":
+                    tasks.append("Collect water bucket")
+                elif block_type in ["mangrove_leaves", "moss_carpet", "vine"]:
+                    tasks.append("Gather seeds or food")
+                # Add more conditions as needed
+
+        # Remove duplicates
+        tasks = list(set(tasks))
+
         return tasks
 
+    # def guide_agent_actions(self, vision_data, inventory_status):
+    #     """
+    #     Generate a list of prioritized actions for the agent based on vision data.
+    #     """
+    #     tasks = self.analyze_vision_data(vision_data)
+    #     prioritized_tasks = []
+
+    #     # Check inventory constraints
+    #     if inventory_status["space"] < len(tasks):
+    #         tasks.append("Deposit items into chest")
+
+    #     # Prioritize tasks
+    #     for task in tasks:
+    #         if "Harvest wood" in task and inventory_status["tools"]["axe"]:
+    #             prioritized_tasks.append(task)
+    #         elif "Mine cobblestone" in task and inventory_status["tools"]["pickaxe"]:
+    #             prioritized_tasks.append(task)
+    #         else:
+    #             prioritized_tasks.append("Craft necessary tools")
+
+    #     return prioritized_tasks
     def guide_agent_actions(self, vision_data, inventory_status):
         """
         Generate a list of prioritized actions for the agent based on vision data.
@@ -328,17 +383,25 @@ class ActionAgent:
         prioritized_tasks = []
 
         # Check inventory constraints
-        if inventory_status["space"] < len(tasks):
+        if inventory_status.get("space", 0) < len(tasks):
             tasks.append("Deposit items into chest")
 
-        # Prioritize tasks
+        # Prioritize tasks based on available tools
         for task in tasks:
-            if "Harvest wood" in task and inventory_status["tools"]["axe"]:
+            if "Harvest wood" in task and inventory_status.get("tools", {}).get("axe", False):
                 prioritized_tasks.append(task)
-            elif "Mine cobblestone" in task and inventory_status["tools"]["pickaxe"]:
+            elif "Mine cobblestone" in task and inventory_status.get("tools", {}).get("pickaxe", False):
+                prioritized_tasks.append(task)
+            elif "Collect water bucket" in task and inventory_status.get("tools", {}).get("bucket", False):
                 prioritized_tasks.append(task)
             else:
                 prioritized_tasks.append("Craft necessary tools")
 
+        # Remove duplicates while preserving order
+        seen = set()
+        prioritized_tasks = [x for x in prioritized_tasks if not (x in seen or seen.add(x))]
+
         return prioritized_tasks
 
+
+# Update Vision Data Regularly: Instead of fetching vision data only during initialization, ensure that the ActionAgent retrieves the latest vision data whenever it needs to make a decision. This can be achieved by calling self.vision_agent.get_vision_memory() at appropriate points in the ActionAgent's workflow.
