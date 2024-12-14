@@ -3,7 +3,9 @@ from voyager.utils.json_utils import fix_and_parse_json
 from langchain.chat_models import ChatOpenAI
 #from langchain_anthropic import ChatAnthropic
 from langchain.schema import HumanMessage, SystemMessage
-#from voyager.agents.vision import VisionAgent
+from voyager.agents.vision import VisionAgent
+import json
+import time
 
 # TODO: Create a new class within the file that uses the Graph RAG approach to retrieve relevant skills based on graph embeddings or scene graph queries.
 class CriticAgent:
@@ -13,7 +15,6 @@ class CriticAgent:
         temperature=0,
         request_timout=120,
         mode="auto",
-        #vision_agent: VisionAgent | None = None,
         vision_agent=None,
     ):
 
@@ -23,19 +24,32 @@ class CriticAgent:
             request_timeout=request_timout,
         )
 
-        # TODO: Modify the ActionAgent to use vision agent's insights for reasoning about actions.
-        # Evaluate task success in CriticAgent.
-        self.vision_agent = vision_agent
-        #vision_data = self.vision_agent.get_vision_memory() 
-
         assert mode in ["auto", "manual"]
         self.mode = mode
+
+         # TODO: Modify the ActionAgent to use vision agent's insights for reasoning about actions.
+        # Evaluate task success in CriticAgent.
+        self.vision_agent = vision_agent
+        vision_data = self.vision_agent.get_vision_memory() 
 
     def render_system_message(self):
         system_message = SystemMessage(content=load_prompt("critic"))
         return system_message
 
     def render_human_message(self, *, events, task, context, chest_observation):
+        """
+        Constructs a human-readable observation message for the LLM.
+
+        Parameters:
+            events (list): A list of tuples representing events.
+            code (str): The code from the last round of actions.
+            task (str): The current task assigned to the bot.
+            context (str): Additional context or instructions.
+            critique (str): Feedback or critique from previous evaluations.
+
+        Returns:
+            HumanMessage: The constructed human message containing observations.
+        """
         assert events[-1][0] == "observe", "Last event must be observe"
         biome = events[-1][1]["status"]["biome"]
         time_of_day = events[-1][1]["status"]["timeOfDay"]
@@ -77,6 +91,11 @@ class CriticAgent:
 
         observation += chest_observation
 
+         # Vision Data Integration
+        vision_data = self.vision_agent.get_vision_memory()
+        vision_description = self.format_vision_data(vision_data)
+        observation += f"Vision Insights:\n{vision_description}\n\n"
+
         observation += f"Task: {task}\n\n"
 
         if context:
@@ -88,6 +107,12 @@ class CriticAgent:
         return HumanMessage(content=observation)
 
     def human_check_task_success(self):
+        """
+        Allows manual input to confirm task success.
+
+        Returns:
+            tuple: (success (bool), critique (str))
+        """
         confirmed = False
         success = False
         critique = ""
@@ -100,6 +125,16 @@ class CriticAgent:
         return success, critique
 
     def ai_check_task_success(self, messages, max_retries=5):
+        """
+        Utilizes the LLM to automatically assess task success.
+
+        Parameters:
+            messages (list): A list containing system and human messages.
+            max_retries (int): Maximum number of retries for parsing.
+
+        Returns:
+            tuple: (success (bool), critique (str))
+        """
         if max_retries == 0:
             print(
                 "\033[31mFailed to parse Critic Agent response. Consider updating your prompt.\033[0m"
@@ -147,3 +182,39 @@ class CriticAgent:
             )
         else:
             raise ValueError(f"Invalid critic agent mode: {self.mode}")
+
+    def format_vision_data(self, vision_data):
+        """
+        Converts vision data into descriptive insights.
+
+        Parameters:
+            vision_data (dict): The raw vision memory data.
+
+        Returns:
+            str: A descriptive summary of vision insights.
+        """
+        vision_insights = []
+        for timestamp, data in vision_data.items():
+            # Process optimal_block
+            optimal_block = data.get("optimal_block", {})
+            if optimal_block:
+                block_type = optimal_block.get("type", "Unknown")
+                position = optimal_block.get("position", {})
+                accessibility = optimal_block.get("accessibility", False)
+                vision_insights.append(
+                    f"At {timestamp}, detected a {block_type} at coordinates "
+                    f"({position.get('x', 0)}, {position.get('y', 0)}, {position.get('z', 0)}) "
+                    f"which is {'accessible' if accessibility else 'not accessible'}."
+                )
+            # Process other_blocks
+            for block in data.get("other_blocks", []):
+                block_type = block.get("type", "Unknown")
+                position = block.get("position", {})
+                accessibility = block.get("accessibility", False)
+                vision_insights.append(
+                    f"Detected a {block_type} at coordinates "
+                    f"({position.get('x', 0)}, {position.get('y', 0)}, {position.get('z', 0)}) "
+                    f"which is {'accessible' if accessibility else 'not accessible'}."
+                )
+        
+        return "\n".join(vision_insights) if vision_insights else "None"

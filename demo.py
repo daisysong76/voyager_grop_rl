@@ -28,7 +28,7 @@ azure_login = {
 # Initialize the first bot
 bot_0 = Voyager(
     bot_id=0,  # Unique ID for the first bot
-    mc_port=49704,
+    mc_port=52977,
     #azure_login=azure_login,
     openai_api_key=openai_api_key,
     max_iterations=100,
@@ -39,7 +39,7 @@ bot_0 = Voyager(
 # Initialize the second bot
 bot_1 = Voyager(
     bot_id=1,  # Unique ID for the second bot
-    mc_port=49704,  # Ensure it connects to the same Minecraft server
+    mc_port=52977,  # Ensure it connects to the same Minecraft server
     #azure_login=azure_login,
     openai_api_key=openai_api_key,
     max_iterations=100,
