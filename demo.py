@@ -19,7 +19,7 @@ if not openai_api_key:
 #     "version": "fabric-loader-0.14.18-1.19", # the version Voyager is tested on
 # }
 azure_login = {
-    "client_id": "3ba45205-c9c0-46bc-8216-4b481f55873d",
+    "client_id": "your_client_id",
     "redirect_url": "https://127.0.0.1/auth-response",
     "secret_value": "",
     "version": "fabric-loader-0.14.18-1.19", # the version Voyager is tested on
