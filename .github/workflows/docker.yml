@@ -1,0 +1,49 @@
+# TODO: update your GitHub Actions workflow to include the Docker build and run steps:
+# Update the Dockerfile and test.py file paths as needed
+
+name: CI Pipeline with Docker
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    # Step 1: Check out the code from the repository
+    - name: Checkout repository
+      uses: actions/checkout@v3
+
+    # Step 2: Set up Docker
+    # By default, the runner should already have Docker installed, but this is an optional step
+    - name: Set up Docker
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y docker.io
+
+    # Step 3: Build Docker container
+    - name: Build Docker image
+      run: |
+        docker build -t my-ai-agent .
+
+    # Step 4: Run Docker container
+    - name: Run Docker container
+      run: |
+        docker run --name my-ai-agent-container my-ai-agent
+
+    # Optional: Test or interact with the container (e.g., running tests inside the container)
+    - name: Test inside Docker container
+      run: |
+        docker exec my-ai-agent-container python test.py  # Example command to run inside the container
+
+    # Step 5: Clean up
+    - name: Clean up Docker container
+      run: |
+        docker stop my-ai-agent-container
+        docker rm my-ai-agent-container

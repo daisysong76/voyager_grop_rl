@@ -1,0 +1,34 @@
+tqdm
+#langchain
+javascript
+setuptools
+openai
+chardet
+cchardet
+chromadb==0.3.29
+tiktoken
+requests
+setuptools
+gymnasium
+psutil
+minecraft_launcher_lib
+dspy
+requests
+anthropic
+rich # for better console output
+dspy-ai
+pydantic==2.7.4
+langchain==0.3.3
+langchain-core==0.3.10
+langchain-community==0.3.2
+fastapi==0.85.1
+prismarine-viewer
+debug
+puppeteer
+#DEBUG=bot node /Users/daisysong/Desktop/CS194agent/Voyager_OAI/voyager/bot-script.js
+canvas
+#brew install pkg-config cairo pango libpng jpeg giflib librsvg
+
+# prismarine-viewer itself provides a way to render Minecraft views directly to a canvas in Node.js, and you can extract image data from this canvas and save it as an image file.
+opencv-python 
+opencv-python-headless
