@@ -250,11 +250,17 @@ class Voyager:
         self.messages = None
         self.conversations = []
         self.last_events = None
-        #self.vision_agent_rollout_num_iter = -1
 
-        # Modify checkpoint dir to be unique per bot
-        self.ckpt_dir = os.path.join(ckpt_dir, f"bot_{bot_id}")
-
+    # TODO 1: Add Graph RAG for Retrieval-Augmented Reasoning
+    # def execute_task(self, instruction):
+    #     # Step 1: Parse instruction
+    #     parsed_instruction = self.instruction_learner.parse_instruction(instruction)
+    #     # Step 2: Retrieve context with Graph RAG
+    #     context_docs = self.graph_rag_manager.retrieve_with_graph(parsed_instruction)
+    #     # Step 3: Use the context and parsed instruction to inform decision-making
+    #     result = self.make_decision(parsed_instruction, context_docs)
+    #     return result
+    
     def reset(self, task, context="", reset_env=True):
         self.action_agent_rollout_num_iter = 0
         self.task = task

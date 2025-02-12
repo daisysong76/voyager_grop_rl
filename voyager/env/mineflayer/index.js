@@ -120,7 +120,11 @@ app.post("/start", (req, res) => {
         }
         console.log('Starting vision capture after delay...');
         // Ensure the logging folder exists
+<<<<<<< HEAD
         const loggingFolder = path.resolve('/Users/daisysong/Desktop/CS194agent/Voyager_OAI/logs/visions');
+=======
+        const loggingFolder = path.resolve('/Users/daisysong/Desktop/CS194agent/Voyager_OAI/logs');
+>>>>>>> 23c3bc80 (two agent+viwer+screenshot)
         if (!fs.existsSync(loggingFolder)) {
             fs.mkdirSync(loggingFolder, { recursive: true });
         }
@@ -130,6 +134,7 @@ app.post("/start", (req, res) => {
             console.log('Starting vision capture after delay...');
             setupVisionCapture(bot);
         }, 2000); // Delay in milliseconds (adjust as needed)
+<<<<<<< HEAD
          // new add for camera
         // Camera synchronization logic
         // setInterval(() => {
@@ -143,6 +148,8 @@ app.post("/start", (req, res) => {
         //     }
         // }, 50); // Update every 50ms (adjust as needed)
         // new add for camera
+=======
+>>>>>>> 23c3bc80 (two agent+viwer+screenshot)
 
         // Ensure bot.viewer is defined before using it
         // if (bot.viewer) {
@@ -482,6 +489,7 @@ const path = require('path');
 async function setupVisionCapture(bot) {
     const browser = await puppeteer.launch({ headless: false }); // Set headless to false for debugging
     const page = await browser.newPage();
+<<<<<<< HEAD
     //await page.setViewport({ width: 320, height: 240 });
     console.log('Connecting to viewer...');
     // TODO: change to 3007 do not need to wait for viewer to load, then capture the screenshot
@@ -494,29 +502,56 @@ async function setupVisionCapture(bot) {
 
     // Ensure the logging folder exists
     const loggingFolder = path.resolve('/Users/daisysong/Desktop/CS194agent/Voyager_OAI/logs/visions');
+=======
+    await page.setViewport({ width: 320, height: 240 });
+    console.log('Connecting to viewer...');
+    await page.goto('http://localhost:3001'); // Connect to the viewer
+    await page.waitForSelector('#viewer-element');
+    //Slow down a bit so we don't get Resource Exhausted errors.  ????? TODO: check if this is necessary
+    //time.sleep(20)
+
+    // Wait for the viewer to load
+    await page.waitForTimeout(2000);
+
+    let lastCaptureTime = Date.now();
+    const captureInterval = 1000 / 2 //16; // Approximately 62.5 ms for 16 fps
+
+    // Ensure the logging folder exists
+    const loggingFolder = path.resolve('/Users/daisysong/Desktop/CS194agent/Voyager_OAI/logs');
+>>>>>>> 23c3bc80 (two agent+viwer+screenshot)
     if (!fs.existsSync(loggingFolder)) {
         fs.mkdirSync(loggingFolder, { recursive: true });
     }
 
     // Maximum number of frames to keep
+<<<<<<< HEAD
     const maxFrames = 30; // Adjust this number based on your storage capacity
     const frameFiles = []; // Keep track of saved frame file names
     const sharp = require('sharp'); 
+=======
+    const maxFrames = 1000; // Adjust this number based on your storage capacity
+    const frameFiles = []; // Keep track of saved frame file names
+>>>>>>> 23c3bc80 (two agent+viwer+screenshot)
 
     async function captureAndSave() {
         try {
             console.log("Attempting to capture and save screenshot...");
             // Take screenshot and save to logging folder with compression
             const timestamp = new Date().toISOString().replace(/[:.]/g, '-'); // Make filename compatible
+<<<<<<< HEAD
             //const screenshotFilename = `screenshot-${timestamp}.jpg`;
             // Assuming botId is defined somewhere in your code
             //const screenshotFilename = `screenshot-bot${bot_Id}-${timestamp}.jpg`;
             const screenshotFilename = `screenshot-bot-${timestamp}.jpg`;
+=======
+            const screenshotFilename = `screenshot-${timestamp}.jpg`;
+>>>>>>> 23c3bc80 (two agent+viwer+screenshot)
             const screenshotPath = path.join(loggingFolder, screenshotFilename);
 
             await page.screenshot({
                 path: screenshotPath,
                 type: 'jpeg',
+<<<<<<< HEAD
                 quality: 30, // Adjust quality between 0-100# todo ask gpt to change to black and white
             });
             // new add
@@ -528,17 +563,24 @@ async function setupVisionCapture(bot) {
 
             // console.log(`Grayscale screenshot saved: ${grayscalePath}`);
             // // new add
+=======
+                quality: 50, // Adjust quality between 0-100# todo ask gpt to change to black and white
+            });
+>>>>>>> 23c3bc80 (two agent+viwer+screenshot)
 
             // Collect metadata
             const metadata = {
                 timestamp: new Date().toISOString(),
                 position: bot.entity.position,
                 orientation: bot.entity.yaw,
+<<<<<<< HEAD
                 // biome: bot.biome,
                 // timeOfDay: bot.timeOfDay,
                 image_path: screenshotPath,
                 //image_path: grayscalePath,
                 screenshotFilename: screenshotFilename,
+=======
+>>>>>>> 23c3bc80 (two agent+viwer+screenshot)
                 // inventory: bot.inventory.items().map((item) => ({
                 //     name: item.name,
                 //     count: item.count,
@@ -546,8 +588,12 @@ async function setupVisionCapture(bot) {
             };
 
             // Save metadata asynchronously
+<<<<<<< HEAD
             //const metadataFilename = `metadata-bot${bot_Id}-${timestamp}.json`;
             const metadataFilename = `metadata-bot-${timestamp}.json`;
+=======
+            const metadataFilename = `metadata-${timestamp}.json`;
+>>>>>>> 23c3bc80 (two agent+viwer+screenshot)
             const metadataPath = path.join(loggingFolder, metadataFilename);
 
             fs.writeFile(metadataPath, JSON.stringify(metadata, null, 2), (err) => {
@@ -562,6 +608,7 @@ async function setupVisionCapture(bot) {
             frameFiles.push({ screenshot: screenshotPath, metadata: metadataPath });
 
             // Manage disk space by deleting old frames
+<<<<<<< HEAD
             if (frameFiles.length > maxFrames) {
                 const oldFrame = frameFiles.shift();
                 fs.unlink(oldFrame.screenshot, (err) => {
@@ -579,6 +626,25 @@ async function setupVisionCapture(bot) {
                     }
                 });
             }
+=======
+            // if (frameFiles.length > maxFrames) {
+            //     const oldFrame = frameFiles.shift();
+            //     fs.unlink(oldFrame.screenshot, (err) => {
+            //         if (err) {
+            //             console.error('Error deleting old screenshot:', err);
+            //         } else {
+            //             console.log(`Old screenshot deleted: ${oldFrame.screenshot}`);
+            //         }
+            //     });
+            //     fs.unlink(oldFrame.metadata, (err) => {
+            //         if (err) {
+            //             console.error('Error deleting old metadata:', err);
+            //         } else {
+            //             console.log(`Old metadata deleted: ${oldFrame.metadata}`);
+            //         }
+            //     });
+            // }
+>>>>>>> 23c3bc80 (two agent+viwer+screenshot)
 
             console.log(`Screenshot saved: ${screenshotPath}`);
 
