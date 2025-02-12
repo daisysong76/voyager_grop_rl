@@ -53,20 +53,3 @@ except KeyboardInterrupt:
     "QWEN_API_KEY":""
 }
 """
-
-
-# voyager = Voyager(
-#     #mc_port="55612",
-#     azure_login=azure_login,
-#     openai_api_key=openai_api_key,
-#     ckpt_dir="/Users/daisysong/Desktop/Voyager2/checkpoints", # Feel free to use a new dir. Do not use the same dir as skill library because new events will still be recorded to ckpt_dir. 
-#     #resume = True,
-#     pause_on_think=False,
-# )
-
-# # start lifelong learning
-# try:
-#     voyager.learn(reset_env=False)
-# except KeyboardInterrupt:
-#     print("Program interrupted. Stopping mineflayer.")
-#     # Add any cleanup code here if necessary
