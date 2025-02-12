@@ -1,8 +1,26 @@
-#  python -m voyager.agents.vision
+# Multi-Stage Training Process
+# DeepSeek's training process involves multiple stages:
+# Initial large-scale reinforcement learning
+# Supervised fine-tuning on synthetic data
+# Further reinforcement learning on reasoning tasks
+# Rejection sampling for optimization
+# Final reinforcement learning for alignment
+
+# The VisionAgent class is responsible for managing the training and decision-making process using reinforcement learning.
+# The multi_stage_training method orchestrates the different stages of training, including initial large-scale reinforcement learning, supervised fine-tuning, further reinforcement learning, rejection sampling optimization, and final reinforcement learning.
+# The _supervised_fine_tuning and _rejection_sampling_optimization methods are placeholders for implementing the specific logic for those stages.
+# The analyze_image method uses the trained reinforcement learning model to make decisions based on the input image.
+# The _preprocess_image method is a placeholder for implementing image preprocessing logic.
+# The _perform_analysis method is a placeholder for implementing the analysis logic based on the chosen action.
+# pip install stable-baselines3\[extra\]
+
+# python -m voyager.agents.vision
 import logging
 import openai
 import anthropic
 import sys
+
+import torch
 sys.path.append('/Users/daisysong/Desktop/CS194agent/Voyager_OAI/voyager/')
 #import voyager.utils as U
 import utils as U
@@ -20,6 +38,142 @@ from langchain.schema import SystemMessage
 #import pdb; pdb.set_trace()
 from pathlib import Path
 
+from stable_baselines3 import PPO
+from stable_baselines3.common.vec_env import DummyVecEnv
+
+import torch.nn as nn
+import torch.optim as optim
+from torch.distributions import Categorical
+
+# TODO 4: Import the VisionEnv class from the vision module
+# class GRPOPolicy(nn.Module):
+#     def __init__(self, input_dim, output_dim):
+#         super(GRPOPolicy, self).__init__()
+#         self.fc = nn.Sequential(
+#             nn.Linear(input_dim, 64),
+#             nn.ReLU(),
+#             nn.Linear(64, output_dim)
+#         )
+    
+#     def forward(self, x):
+#         return self.fc(x)
+class GRPOPolicy(nn.Module):
+    def __init__(self, input_dim, output_dim):
+        super(GRPOPolicy, self).__init__()
+        self.fc = nn.Sequential(
+            nn.Linear(input_dim, 128),
+            nn.ReLU(),
+            nn.Linear(128, 64),
+            nn.ReLU(),
+            nn.Linear(64, output_dim)
+        )
+    
+    def forward(self, x):
+        return self.fc(x)
+class GRPOAgent:
+    def __init__(self, input_dim, output_dim, learning_rate=0.001):
+        self.policy = GRPOPolicy(input_dim, output_dim)
+        self.optimizer = optim.Adam(self.policy.parameters(), lr=learning_rate)
+        self.gamma = 0.99
+
+    def select_action(self, state):
+        state = torch.FloatTensor(state).unsqueeze(0)
+        probs = self.policy(state)
+        m = Categorical(probs)
+        action = m.sample()
+        return action.item(), m.log_prob(action)
+
+    def update_policy(self, rewards, log_probs):
+        R = 0
+        policy_loss = []
+        returns = []
+        for r in rewards[::-1]:
+            R = r + self.gamma * R
+            returns.insert(0, R)
+        returns = torch.tensor(returns)
+        returns = (returns - returns.mean()) / (returns.std() + 1e-8)
+        
+        for log_prob, R in zip(log_probs, returns):
+            policy_loss.append(-log_prob * R)
+        
+        self.optimizer.zero_grad()
+        policy_loss = torch.cat(policy_loss).sum()
+        policy_loss.backward()
+        self.optimizer.step()
+
+    def train(self, env, num_episodes=1000):
+        for i_episode in range(num_episodes):
+            state = env.reset()
+            rewards = []
+            log_probs = []
+            
+            for t in range(1000):  # Assume max 1000 steps per episode
+                action, log_prob = self.select_action(state)
+                next_state, reward, done, _ = env.step(action)
+                rewards.append(reward)
+                log_probs.append(log_prob)
+                
+                if done:
+                    break
+                
+                state = next_state
+            
+            self.update_policy(rewards, log_probs)
+            
+            if i_episode % 10 == 0:
+                print(f'Episode {i_episode}\tAverage reward: {sum(rewards)/len(rewards)}')
+
+class EnhancedActionAgent(ActionAgent):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.grpo_agent = GRPOAgent(input_dim=224*224*3, output_dim=4)  # Adjust dimensions as needed
+
+    def process_action(self, events):
+        # Use GRPO agent for decision making
+        state = self._preprocess_state(events)
+        action, _ = self.grpo_agent.select_action(state)
+        
+        # Combine GRPO decision with existing logic
+        grpo_decision = self._interpret_grpo_action(action)
+        
+        # Existing ActionAgent logic
+        existing_decision = super().process_action(events)
+        
+        # Combine decisions (implement your own logic here)
+        final_decision = self._combine_decisions(grpo_decision, existing_decision)
+        
+        return final_decision
+
+    def _preprocess_state(self, events):
+        # Convert events to a state representation for GRPO
+        # Implement your own preprocessing logic
+        pass
+
+    def _interpret_grpo_action(self, action):
+        # Convert GRPO action to a format compatible with ActionAgent
+        # Implement your own interpretation logic
+        pass
+
+    def _combine_decisions(self, grpo_decision, existing_decision):
+        # Implement logic to combine GRPO and existing decisions
+        pass
+
+    def train_grpo(self, env, num_episodes=1000):
+        self.grpo_agent.train(env, num_episodes)
+# end of TODO 4
+# prompt engineering: https://www.perplexity.ai/search/we-will-hold-a-series-of-offic-wRm6SoDtQVGxu0wIQCE6WA
+# To use this implementation:
+# Initialize the EnhancedActionAgent:
+# python
+# agent = EnhancedActionAgent()
+# Train the GRPO component:
+# python
+# env = YourMinecraftEnvironment()  # Implement this
+# agent.train_grpo(env, num_episodes=1000)
+# Use the enhanced agent for decision-making:
+# python
+# action = agent.process_action(events)
+# This approach allows you to leverage both the existing ActionAgent's capabilities and the GRPO-based decision-making, potentially improving the agent's performance in the Minecraft environment.
 
 class VisionAgent:
     def __init__(
@@ -45,6 +199,15 @@ class VisionAgent:
         self.vision_dir = self.ckpt_dir / "vision"
         self.vision_dir.mkdir(parents=True, exist_ok=True)
         print(f"\033[34mEnsured directory exists: {self.vision_dir}\033[0m")  # Blue color for directory creation
+
+         #TODO 4: Initialize RL components
+        self.env = DummyVecEnv([lambda: VisionEnv()])
+        self.model = PPO("MlpPolicy", self.env, verbose=1)
+
+        self.policy = GRPOPolicy(input_dim=224*224*3, output_dim=4)  # Assuming 224x224 RGB images and 4 actions
+        self.optimizer = optim.Adam(self.policy.parameters(), lr=0.001)
+        self.gamma = 0.99
+        # end of TODO 4
         
         if resume:
             memory_file = self.vision_dir / "vision_memory.json"
@@ -67,7 +230,6 @@ class VisionAgent:
         #     self.vision_memory = {}
         #     print("\033[33mInitialized empty vision_memory.\033[0m")  # Yellow color
 
-
         self.llm = ChatOpenAI(
             model_name=model_name,
             temperature=temperature,
@@ -84,41 +246,7 @@ class VisionAgent:
         """Save JSON to a file."""
         with open(file_path, "w") as f:
             json.dump(data, f, indent=4)
-
-    # def update_vision_memory(self, vision_data):
-    #     """
-    #     Update vision memory with new data and save to file.
-
-    #     Args:
-    #         vision_data (dict): New vision data to add.
-    #     """
-    #     logging.info("Updating vision memory.")
-    #     print(f"\033[33mVisionAgent.update_vision_memory called with: {vision_data}\033[0m")
-
-    #     # Add a timestamp to the new data
-    #     vision_data["timestamp"] = datetime.utcnow().isoformat()
-
-    #     # Path to vision memory file
-    #     memory_file_path = self.ckpt_dir / "vision" / "vision_memory.json"
-
-    #     # Load existing memory if the file exists
-    #     if memory_file_path.exists():
-    #         self.vision_memory = self._load_json(memory_file_path)
-    #     else:
-    #         self.vision_memory = {}  # Ensure this is a list
-
-    #     # Check if self.vision_memory is a list before appending
-    #     if isinstance(self.vision_memory, list):
-    #         # Append the new data to the vision memory
-    #         self.vision_memory.append(vision_data)  # This line may cause the error if self.vision_memory is not a list
-    #     else:
-    #         logging.error("vision_memory is not a list. Current type: {}".format(type(self.vision_memory)))
-    #         raise TypeError("vision_memory should be a list.")
-
-    #     # Save the updated memory back to the JSON file
-    #     self._save_json(self.vision_memory, memory_file_path)
-
-    #     logging.info("New analysis added to vision_memory.json.")    
+   
     def update_vision_memory(self, vision_data):
         """
         Update vision memory with new data and save to file.
@@ -399,68 +527,111 @@ class VisionAgent:
         pass
     def get_vision_memory(self):
         return self.vision_memory
-# Example usage
-# if __name__ == "__main__":
-#     image_path = "/Users/daisysong/Desktop/CS194agent/Voyager_OAI/logs/visions/screenshot-2024-11-17T00-31-10-176Z.jpg"  # Update with path to the current image most recently captured
-#     vision_agent = VisionAgent()
-#     insights = vision_agent.analyze_image(image_path)
-#     print("Vision Agent Insights:", insights)
-#     # save the insights to a file
-#     with open("vision_insights.txt", "w") as file:
-#         file.write(insights)
+    def get_vision_memory_by_timestamp(self, timestamp):
+        return self.vision_memory.get(timestamp, {})
+    
+    def get_vision_memory_by_block_type(self, block_type):
+        return [data for data in self.vision_memory.values() if data.get("optimal_block", {}).get("type") == block_type]
+   
+    #TODO 4: Implement the multi_stage_training method
+    def multi_stage_training(self, total_timesteps=100000):
+        print("Stage 1: Initial large-scale reinforcement learning")
+        self.rl_model.learn(total_timesteps=total_timesteps)
+
+        print("Stage 2: Supervised fine-tuning on synthetic data")
+        self._supervised_fine_tuning()
+
+        print("Stage 3: Further reinforcement learning on reasoning tasks")
+        self.rl_model.learn(total_timesteps=total_timesteps // 2)
+
+        print("Stage 4: Rejection sampling for optimization")
+        self._rejection_sampling_optimization()
+
+        print("Stage 5: Final reinforcement learning for alignment")
+        self.rl_model.learn(total_timesteps=total_timesteps // 4)
+
+    # Implement supervised fine-tuning on synthetic data
+    def _supervised_fine_tuning(self):
+        # Generate or load synthetic data
+        train_data, val_data = self._get_synthetic_data()
+        
+        # Set up optimizer and loss function
+        optimizer = torch.optim.AdamW(self.model.parameters(), lr=1e-5)
+        loss_fn = torch.nn.CrossEntropyLoss()
+        
+        # Training loop
+        best_val_loss = float('inf')
+        patience = 3
+        for epoch in range(10):  # Adjust number of epochs as needed
+            self.model.train()
+            for batch in train_data:
+                optimizer.zero_grad()
+                inputs, labels = batch
+                outputs = self.model(inputs)
+                loss = loss_fn(outputs, labels)
+                loss.backward()
+                torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
+                optimizer.step()
+            
+            # Validation
+            val_loss = self._validate(val_data)
+            if val_loss < best_val_loss:
+                best_val_loss = val_loss
+                patience = 3
+            else:
+                patience -= 1
+                if patience == 0:
+                    break  # Early stopping
+        
+        print(f"Fine-tuning completed. Best validation loss: {best_val_loss}")
+
+        pass
+
+    # Implement rejection sampling for optimization
+    def _rejection_sampling_optimization(self):
+        # Generate candidate samples
+        num_candidates = 1000
+        candidates = self.generate_candidates(num_candidates)
+        
+        # Evaluate candidates
+        scores = self.evaluate_candidates(candidates)
+        
+        # Perform rejection sampling
+        acceptance_threshold = np.percentile(scores, 90)  # Accept top 10%
+        accepted_samples = [c for c, s in zip(candidates, scores) if s >= acceptance_threshold]
+        
+        # Update model with accepted samples
+        self.update_model(accepted_samples)
+
+    def generate_candidates(self, num_candidates):
+        # Generate diverse candidates using the current model
+        return [self.model.generate(temperature=0.7) for _ in range(num_candidates)]
+
+    def evaluate_candidates(self, candidates):
+        # Evaluate candidates using a reward model or heuristic
+        return [self.reward_model.score(c) for c in candidates]
+
+    def update_model(self, accepted_samples):
+        # Fine-tune the model on accepted samples
+        self.model.fine_tune(accepted_samples)
 
 
-# Roadmap Summary:
-# Build a Hierarchical Multi-Agent System for efficient task allocation and execution.
-# Incorporate Multi-Modal Perception for richer environmental understanding.
-# Enable Dynamic Role Allocation to improve collaboration and adaptability.
-# Add Long-Term Memory to leverage past experiences.
-# Leverage LLMs for advanced planning and reasoning.
-# Introduce Error Handling Mechanisms to improve robustness.
-# Fine-Tune Vision Models for better spatial reasoning.
-# Simulate Scalable Experiments to stress-test the system.
-# Benchmark and Publish Results to validate your advancements.
-# By implementing these steps, you can push the boundaries of multi-agent navigation systems and potentially achieve breakthroughs in embodied AI.
+    def analyze_image(self, image_path):
+        # ... existing code ...
 
-# TODO 3: Enhance Long-Term Memory and Knowledge Sharing
-    # Current Challenge: Lack of memory limits agents’ ability to learn from past experiences.
-    # Solution:
-    # Add a multi-modal memory system to store successful strategies and environmental data (e.g., locations, paths, patterns).
-    # Use retrieval-augmented generation (RAG) techniques to reference this memory during task execution.
-    # Potential Breakthrough: Allows agents to reuse strategies and adapt to repetitive or complex tasks faster.
+        # Use the trained RL model for decision making
+        observation = self._preprocess_image(image_path)
+        action, _ = self.rl_model.predict(observation)
 
+        # Use the action to guide the analysis
+        response_data = self._perform_analysis(action)
 
-    # Use Large Language Models (LLMs) with Structured Fine-Tuning
-    # Current Challenge: Limited reasoning capabilities in generating action plans.
-    # Solution:
-    # Fine-tune LLMs like GPT-4 to generate context-aware, multi-agent action plans.
-    # Add specialized modules (e.g., planner, describer, critic) for interpreting visual cues and generating collaborative instructions.
-    # Potential Breakthrough: Enhances planning and reasoning capabilities, making agents capable of solving unseen tasks effectively.
+        # ... rest of the existing code ...
 
-    # Introduce Proactive Error Handling and Adaptation
-    # Current Challenge: Agents often fail when unexpected errors or environmental changes occur.
-    # Solution:
-    # Implement closed-loop feedback mechanisms to detect and correct errors autonomously.
-    # Add a simulation layer for agents to test potential actions before execution.
-    # Potential Breakthrough: Reduces task failure rates and increases the robustness of the system in unpredictable environments.
+    def _preprocess_image(self, image_path):
+        # Implement image preprocessing logic
+        pass
 
-    # Optimize Vision Models for Navigation Tasks
-    # Current Challenge: Vision models may lack the fine-tuned ability to detect and interact with Minecraft-specific objects.
-    # Solution:
-    # Train or fine-tune a vision transformer (e.g., Swin, CLIP) on Minecraft datasets.
-    # Implement spatial reasoning modules to compute relative positions (x, y, z) and accessibility.
-    # Potential Breakthrough: Enhances object detection and spatial reasoning, making agents more efficient in navigation.
-
-    # Simulate Scalable Experiments
-    # Current Challenge: Limited testing scenarios may not reveal the true potential or weaknesses of the system.
-    # Solution:
-    # Use procedurally generated Minecraft environments with varying levels of complexity.
-    # Simulate large-scale collaboration tasks with 10+ agents to test scalability and adaptability.
-    # Potential Breakthrough: Demonstrates real-world viability and provides insights for further optimization.
-
-    # Publish and Benchmark Against State-of-the-Art
-    # Current Challenge: It's unclear how your system compares to existing frameworks like HAS, Voyager, and STEVE.
-    # Solution:
-    # Conduct benchmarks on open-ended navigation tasks (e.g., map exploration, multi-modal goal search) using your enhanced system.
-    # Publish results comparing your system's efficiency, success rates, and scalability.
-    # Potential Breakthrough: Establishes credibility in the research community and identifies areas for improvement.
+    def _perform_analysis(self, action):
+        # Implement analysis logic based on the chosen action
+        pass

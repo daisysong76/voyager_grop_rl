@@ -48,6 +48,7 @@ class ActionAgent:
         if vision_agent is None:
             print("\033[33mActionAgent initializing VisionAgent\033[0m")
             self.vision_agent = VisionAgent()  # Create a new instance if none is provided
+            #self.vision_agent= self.vision_agent.multi_stage_training(total_timesteps=100000)
         else:
             self.vision_agent = vision_agent  # Use the provided instance
         print("\033[33mActionAgent getting vision_memory\033[0m")
@@ -201,15 +202,15 @@ class ActionAgent:
             observation += self.render_chest_observation()
 
         # TODO 2: Visual analysis if VisionAgent is available
-        # if self.vision_agent:
-        #     visual_context = self.vision_agent.capture_and_analyze("path_to_image.png")
-        #     observation += f"Visual Analysis:\n{visual_context}\n\n"
         # Fetch the latest vision data
         vision_data = self.vision_agent.get_vision_memory()
-        formatted_vision_data = json.dumps(vision_data, indent=2)
-
-        # Incorporate vision data into the observation
-        observation += f"Vision Data:\n{formatted_vision_data}\n\n"
+        #formatted_vision_data = json.dumps(vision_data, indent=2)
+        if vision_data:
+            # Format vision data for readability
+            formatted_vision_data = json.dumps(vision_data, indent=2)
+            observation += f"Vision Data:\n{formatted_vision_data}\n\n"
+        else:
+            observation += f"Vision Data: None\n\n"
 
         observation += f"Task: {task}\n\n"
 
@@ -405,3 +406,69 @@ class ActionAgent:
 
 
 # Update Vision Data Regularly: Instead of fetching vision data only during initialization, ensure that the ActionAgent retrieves the latest vision data whenever it needs to make a decision. This can be achieved by calling self.vision_agent.get_vision_memory() at appropriate points in the ActionAgent's workflow.
+    # Vision Data Integration
+    # vision_data = self.vision_agent.get_vision_memory()
+    # if vision_data:
+    #     # Convert vision data into a descriptive format
+    #     vision_insights = []
+    #     for timestamp, data in vision_data.items():
+    #         optimal_block = data.get("optimal_block", {})
+    #         if optimal_block:
+    #             block_type = optimal_block.get("type", "Unknown")
+    #             position = optimal_block.get("position", {})
+    #             accessibility = optimal_block.get("accessibility", False)
+    #             vision_insights.append(
+    #                 f"At {timestamp}, detected an {block_type} at coordinates "
+    #                 f"({position.get('x', 0)}, {position.get('y', 0)}, {position.get('z', 0)}) "
+    #                 f"which is {'accessible' if accessibility else 'not accessible'}."
+    #             )
+    #         # Process other_blocks
+    #         for block in data.get("other_blocks", []):
+    #             block_type = block.get("type", "Unknown")
+    #             position = block.get("position", {})
+    #             accessibility = block.get("accessibility", False)
+    #             vision_insights.append(
+    #                 f"Detected an {block_type} at coordinates "
+    #                 f"({position.get('x', 0)}, {position.get('y', 0)}, {position.get('z', 0)}) "
+    #                 f"which is {'accessible' if accessibility else 'not accessible'}."
+    #             )
+        
+    #     # Combine insights into a single string
+    #     vision_description = "\n".join(vision_insights)
+    #     observation += f"Vision Insights:\n{vision_description}\n\n"
+    # else:
+    #     observation += f"Vision Insights: None\n\n"
+
+#     The ActionAgent class is a sophisticated component designed for decision-making and task execution in a Minecraft-like environment. Here are its key features:
+
+# 1. Initialization:
+#    - Uses OpenAI's ChatGPT model for decision-making
+#    - Integrates with a VisionAgent for visual analysis
+#    - Manages chest memory for item storage
+
+# 2. Memory Management:
+#    - Updates and maintains chest memory
+#    - Renders chest observations for decision-making
+
+# 3. Message Handling:
+#    - Renders system messages with available skills
+#    - Processes human messages with detailed environment observations
+#    - Handles AI messages and parses JavaScript code for execution
+
+# 4. Vision Integration:
+#    - Incorporates vision data from the VisionAgent into observations
+#    - Analyzes vision data to identify resources and prioritize tasks
+
+# 5. Task Prioritization:
+#    - Guides agent actions based on vision data and inventory status
+#    - Prioritizes tasks like harvesting wood, mining cobblestone, and crafting tools
+
+# 6. Error Handling:
+#    - Manages execution errors and provides error feedback
+
+# This ActionAgent is designed to work in conjunction with a VisionAgent, enabling more informed decision-making based on visual input from the game environment.
+
+# Citations:
+# [1] https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/30932262/9b85ec53-f7c5-44dd-8e63-a8c791053eeb/paste.txt
+# [2] https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/30932262/3017ea85-779f-4225-b509-da7711957561/paste-2.txt
+# [3] https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/30932262/9b115311-a48c-441e-96ed-82458d771414/paste-3.txt
