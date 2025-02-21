@@ -3,7 +3,6 @@
 #     num_actions_to_generate=5,
 #     reflection_threshold=0.7
 # )
-
 # # The agent will now use both GRPO and Chain of Thought
 # optimal_action = agent.select_optimal_action(observation)
 
@@ -540,23 +539,22 @@ class ActionAgent:
 
 #     Key Features Verified
 # GRPO Implementation
-
 # Generates multiple candidate actions (num_actions_to_generate).
 # Scores them based on multiple factors (score_action, _evaluate_reasoning_alignment).
 # Uses iterative refinement if the action score is below reflection_threshold.
 # Integrates group context tracking (self.group_context) for shared decision-making.
-# Chain of Thought (CoT) Reasoning
 
+# Chain of Thought (CoT) Reasoning
 # Uses generate_chain_of_thought() to break down reasoning steps.
 # evaluate_reasoning_chain() assesses CoT quality across logical consistency, context relevance, actionability, and completeness.
 # Stores reasoning chains in self.reasoning_chains for later refinement.
-# Action Selection Refinement
 
+# Action Selection Refinement
 # If an action is suboptimal, the system refines it based on reasoning chains (refine_action).
 # Scores actions using a weighted combination of GRPO scores and reasoning alignment.
 # Uses a reflection loop (with a limit of max_refinement_steps).
-# Memory Handling
 
+# Memory Handling
 # group_context is persisted to maintain historical decisions.
 # Stores reasoning chains in reasoning_chains.json.
 # Handles chest memory updates (update_chest_memory) and environmental state observations.
