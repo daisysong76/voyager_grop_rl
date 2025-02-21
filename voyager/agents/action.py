@@ -319,7 +319,6 @@ class ActionAgent:
     #     # Query the scene graph to get nearby objects
     #     nearby_objects = self.scene_graph.query(current_state["object_id"], relation="nearby")
     #     # Use the nearby objects and other relationships for reasoning
-    #     pass
 
     # def analyze_vision_data(self, vision_data):
     #     """
