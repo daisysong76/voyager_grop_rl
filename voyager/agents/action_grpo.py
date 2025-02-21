@@ -1,3 +1,14 @@
+# To use this action agent:
+# agent = ActionAgent(
+#     num_actions_to_generate=5,
+#     reflection_threshold=0.7,
+#     max_refinement_steps=3
+# )
+# # The agent will now use GRPO for better decision making
+# optimal_action = agent.select_optimal_action(observation)
+
+
+
 import json
 import re
 import time
@@ -296,3 +307,30 @@ class ActionAgent:
             "crafting": len(re.findall(r'bot\.craft', code)),
             "combat": len(re.findall(r'bot\.attack', code))
         }
+    
+
+#     Here are the key improvements:
+
+# Multi-Step Reasoning:
+# Added generate_candidate_actions() to create multiple possible actions
+# Implemented comprehensive scoring system with score_action() that evaluates:
+
+# Goal alignment
+# Resource efficiency
+# Safety considerations
+# Group coordination
+
+# Self-Reflection & Refinement:
+# Added refine_action() for iterative improvement of low-scoring actions
+# Implemented reflection threshold and maximum refinement steps
+# Enhanced action processing with metadata collection
+
+# Collaborative Group Optimization:
+# Added group context tracking
+# Implemented conflict detection between actions
+# Added action history for coordinated decision making
+
+# Key New Parameters:
+# num_actions_to_generate: Number of candidate actions to consider
+# reflection_threshold: Score threshold for triggering refinement
+# max_refinement_steps: Maximum refinement iterations

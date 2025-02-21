@@ -53,3 +53,33 @@ except KeyboardInterrupt:
     "QWEN_API_KEY":""
 }
 """
+
+
+# git add demo.py
+# git commit -m "Update demo.py"
+
+# Since your branches have diverged, let's create a completely new branch without history:
+
+# bashCopy# Create a new branch without history
+# git checkout --orphan latest_branch
+
+# # Add all the files
+# git add -A
+
+# # Commit the changes
+# git commit -m "Fresh start without sensitive data"
+
+# # Delete the old branch
+# git branch -D daisysong76
+
+# # Rename the current branch
+# git branch -m daisysong76
+
+# # Force push to remote
+# git push -f origin daisysong76
+# This approach will create a completely new history, effectively removing the API key from the git history.
+# If this still doesn't work, you can try the GitHub's allowed solution:
+
+# Go to: https://github.com/daisysong76/voyager_grop_rl/security/secret-scanning/unblock-secret/2svLCsCmMaH0saeuVbYjZHJumnk
+# Confirm that you've revoked/changed the API key
+# Click to allow the push

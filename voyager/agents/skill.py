@@ -1,3 +1,7 @@
+# GRPO Enhancement:
+# The Skill Agent learns from group-based reward comparisons, selecting the most reusable skills instead of just optimizing for immediate success.
+# Example: If an agent learns both "building a bridge" and "swimming across rivers", GRPO allows it to determine which is more generally useful across tasks.
+
 import os
 
 import voyager.utils as U

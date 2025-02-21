@@ -317,3 +317,16 @@ class StateOfTheArtMinecraftAI:
 #     # Save checkpoint periodically
 #     if minecraft_ai.training_step % 1000 == 0:
 #         minecraft_ai.save_checkpoint()
+
+
+
+# What This Code Already Has:
+# Hierarchical Controller: Uses multiple Transformer layers for multi-level decision-making.
+# World Model: Simulates causal reasoning for environmental changes.
+# Memory & Attention Mechanisms: Implements an episodic memory system for past state retrieval.
+# Reinforcement Learning Framework: Uses policy networks, value estimation, curriculum learning, and optimization.
+
+# What It’s Missing for GRPO:
+# Group-Based Evaluation → GRPO compares multiple policy outputs within a group, but this code only trains policies individually.
+# Relative Scoring Instead of Absolute Rewards → GRPO optimizes actions relative to a batch, while this code optimizes each policy independently.
+# Sampling and Ranking Mechanism for Multi-Step Reasoning → DeepSeek’s GRPO evaluates multiple generated actions, but this controller selects one action directly.

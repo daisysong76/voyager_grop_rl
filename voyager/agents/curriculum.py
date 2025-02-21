@@ -1,4 +1,11 @@
 # TODO 2: to add Hierarchical planner that decomposes complex tasks
+# 3. Planning Agent: Smarter Task Sequencing & Skill Selection
+# Current Voyager Issue: The bot chooses skills sequentially without iteratively improving plans.
+# GRPO Enhancement:
+# Instead of planning a single path, GRPO allows the bot to generate multiple planning strategies, evaluate their potential relative to each other, and self-correct mistakes.
+# This is similar to DeepSeek’s self-reflective thought refinement, but applied to multi-step planning.
+# Example: The Planning Agent considers two approaches to craft a tool → GRPO optimizes by selecting the one that requires fewer steps.
+
 # Environment-Aware Task Selection
 # Enhanced Contextual Awareness: By integrating VisionAgent, CurriculumAgent can “see” the current environment and tailor tasks that make sense in the immediate context. 
 # For example, if the visual input detects trees, CurriculumAgent might prioritize wood-gathering tasks, avoiding irrelevant tasks like mining if no ores are visible.

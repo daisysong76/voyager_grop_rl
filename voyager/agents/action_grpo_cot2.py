@@ -1,22 +1,23 @@
-# Multi-Step Reasoning & Self-Reflection for Action Selection
-# Current Voyager Issue: Actions may be selected reactively, without deep self-assessment or correction.
-# GRPO Enhancement: Uses group-based evaluation of possible actions before finalizing a decision.
-# Instead of picking the first valid action, the bot generates multiple potential actions and scores them relative to one another.
-# The bot re-evaluates lower-scoring actions and refines choices iteratively (like how DeepSeek refines LLM responses).
-# Example: The Action Agent generates multiple movement strategies, ranks them, and picks the most optimal path.
+#agent = ActionAgent(
+#     cot_depth=3,  # Number of reasoning steps
+#     num_actions_to_generate=5,
+#     reflection_threshold=0.7
+# )
+
+# # The agent will now use both GRPO and Chain of Thought
+# optimal_action = agent.select_optimal_action(observation)
 
 import json
 import re
 import time
+import numpy as np
+from typing import List, Dict, Any, Tuple
 import voyager.utils as U
 from javascript import require
 from langchain.chat_models import ChatOpenAI
-#from langchain_anthropic import ChatAnthropic
 from langchain.prompts import SystemMessagePromptTemplate
 from langchain.schema import AIMessage, HumanMessage, SystemMessage
 from voyager.agents.vision import VisionAgent
-#model_name = ChatAnthropic(model="claude-3.5", temperature=0.7, max_tokens=512)
-
 from voyager.prompts import load_prompt
 from voyager.control_primitives_context import load_control_primitives_context
 
@@ -31,36 +32,257 @@ class ActionAgent:
         chat_log=True,
         execution_error=True,
         vision_agent=None,
+        num_actions_to_generate=5,
+        reflection_threshold=0.7,
+        max_refinement_steps=3,
+        cot_depth=3  # New: Control depth of chain of thought reasoning
     ):
-        # TODO: Add a parameter to the constructor for the Graph RAG approach
-        # self.scene_graph = scene_graph()  # Initialize the scene graph in the action agent
         self.ckpt_dir = ckpt_dir
         self.chat_log = chat_log
         self.execution_error = execution_error
+        self.num_actions_to_generate = num_actions_to_generate
+        self.reflection_threshold = reflection_threshold
+        self.max_refinement_steps = max_refinement_steps
+        self.cot_depth = cot_depth
+        
+        # Initialize reasoning chain memory
+        self.reasoning_chains = []
+        
+        # Initialize group context for collaborative optimization
+        self.group_context = {
+            'other_agents': [],
+            'shared_objectives': [],
+            'action_history': [],
+            'reasoning_history': []  # New: Track reasoning chains
+        }
+        
         U.f_mkdir(f"{ckpt_dir}/action")
         if resume:
             print(f"\033[32mLoading Action Agent from {ckpt_dir}/action\033[0m")
             self.chest_memory = U.load_json(f"{ckpt_dir}/action/chest_memory.json")
+            try:
+                self.group_context = U.load_json(f"{ckpt_dir}/action/group_context.json")
+                self.reasoning_chains = U.load_json(f"{ckpt_dir}/action/reasoning_chains.json")
+            except:
+                pass
         else:
             self.chest_memory = {}
+
         self.llm = ChatOpenAI(
             model_name=model_name,
             temperature=temperature,
             request_timeout=request_timout,
         )
 
-        # TODO: Modify the ActionAgent to use vision agent's insights for reasoning about actions.
-        # Improve navigation and interaction in ActionAgent.
-         # Use the passed vision_agent if provided, otherwise create a new instance
         if vision_agent is None:
             print("\033[33mActionAgent initializing VisionAgent\033[0m")
-            self.vision_agent = VisionAgent()  # Create a new instance if none is provided
-            #self.vision_agent= self.vision_agent.multi_stage_training(total_timesteps=100000)
+            self.vision_agent = VisionAgent()
         else:
-            self.vision_agent = vision_agent  # Use the provided instance
+            self.vision_agent = vision_agent
+            
         print("\033[33mActionAgent getting vision_memory\033[0m")
-        vision_data = self.vision_agent.get_vision_memory()
+        self.vision_data = self.vision_agent.get_vision_memory()
 
+    def generate_chain_of_thought(self, observation: str, context: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Generate chain of thought reasoning for action selection."""
+        system_prompt = """Analyze the situation and generate a chain of thought reasoning process to determine the best action.
+        Consider:
+        1. Current state and objectives
+        2. Potential consequences of actions
+        3. Resource availability and constraints
+        4. Past experiences and outcomes
+        5. Alternative approaches
+        
+        Format your response as a series of logical steps, each building on the previous ones."""
+
+        thoughts = []
+        current_context = observation
+        
+        for step in range(self.cot_depth):
+            # Generate next reasoning step
+            human_message = HumanMessage(content=f"Current context: {current_context}\n\nNext reasoning step:")
+            response = self.llm.predict_messages([SystemMessage(content=system_prompt), human_message])
+            
+            thought = {
+                'step': step + 1,
+                'reasoning': response.content,
+                'context': current_context
+            }
+            thoughts.append(thought)
+            
+            # Update context with new reasoning
+            current_context = f"{current_context}\nReasoning step {step + 1}: {response.content}"
+            
+        return thoughts
+
+    def evaluate_reasoning_chain(self, chain: List[Dict[str, Any]], context: Dict[str, Any]) -> float:
+        """Evaluate the quality of a reasoning chain."""
+        evaluation_criteria = {
+            'logical_consistency': self._evaluate_logical_consistency(chain),
+            'context_relevance': self._evaluate_context_relevance(chain, context),
+            'actionability': self._evaluate_actionability(chain),
+            'completeness': self._evaluate_completeness(chain)
+        }
+        
+        weights = {
+            'logical_consistency': 0.3,
+            'context_relevance': 0.3,
+            'actionability': 0.2,
+            'completeness': 0.2
+        }
+        
+        return sum(score * weights[criterion] for criterion, score in evaluation_criteria.items())
+
+    def _evaluate_logical_consistency(self, chain: List[Dict[str, Any]]) -> float:
+        """Evaluate logical consistency between reasoning steps."""
+        system_message = SystemMessage(content="Evaluate the logical consistency between these reasoning steps.")
+        chain_text = "\n".join(f"Step {t['step']}: {t['reasoning']}" for t in chain)
+        human_message = HumanMessage(content=f"Reasoning chain:\n{chain_text}")
+        
+        response = self.llm.predict_messages([system_message, human_message])
+        try:
+            score = float(re.search(r"Consistency score: ([\d.]+)", response.content).group(1))
+            return min(max(score, 0.0), 1.0)
+        except:
+            return 0.5
+
+    def _evaluate_context_relevance(self, chain: List[Dict[str, Any]], context: Dict[str, Any]) -> float:
+        """Evaluate relevance of reasoning to current context."""
+        relevant_terms = set(self._extract_key_terms(context))
+        chain_terms = set(self._extract_key_terms("\n".join(t['reasoning'] for t in chain)))
+        
+        overlap = len(relevant_terms.intersection(chain_terms))
+        total_terms = len(relevant_terms)
+        
+        return overlap / total_terms if total_terms > 0 else 0.5
+
+    def _evaluate_actionability(self, chain: List[Dict[str, Any]]) -> float:
+        """Evaluate how actionable the reasoning chain is."""
+        action_patterns = [
+            r'should',
+            r'could',
+            r'must',
+            r'need to',
+            r'will',
+            r'can'
+        ]
+        
+        total_actions = 0
+        for thought in chain:
+            total_actions += sum(1 for pattern in action_patterns 
+                               if re.search(pattern, thought['reasoning'].lower()))
+            
+        return min(total_actions / (len(chain) * 2), 1.0)  # Expect ~2 actionable items per step
+
+    def _evaluate_completeness(self, chain: List[Dict[str, Any]]) -> float:
+        """Evaluate completeness of the reasoning chain."""
+        required_elements = [
+            'objective',
+            'analysis',
+            'consideration',
+            'conclusion'
+        ]
+        
+        chain_text = "\n".join(t['reasoning'] for t in chain)
+        elements_found = sum(1 for element in required_elements 
+                           if re.search(element, chain_text, re.IGNORECASE))
+        
+        return elements_found / len(required_elements)
+
+    def _extract_key_terms(self, text: str) -> List[str]:
+        """Extract key terms from text using simple NLP."""
+        # Simple term extraction (could be enhanced with proper NLP)
+        words = re.findall(r'\b\w+\b', text.lower())
+        # Filter out common stop words
+        stop_words = {'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for'}
+        return [w for w in words if w not in stop_words]
+
+    def select_optimal_action(self, observation: str) -> Dict[str, Any]:
+        """Select optimal action using GRPO and Chain of Thought reasoning."""
+        context = {
+            'observation': observation,
+            'group_context': self.group_context
+        }
+        
+        # Generate chain of thought reasoning
+        reasoning_chain = self.generate_chain_of_thought(observation, context)
+        chain_score = self.evaluate_reasoning_chain(reasoning_chain, context)
+        
+        # Store reasoning chain if it's high quality
+        if chain_score > 0.8:
+            self.reasoning_chains.append({
+                'chain': reasoning_chain,
+                'score': chain_score,
+                'timestamp': time.time()
+            })
+            U.dump_json(self.reasoning_chains, f"{self.ckpt_dir}/action/reasoning_chains.json")
+        
+        # Generate candidate actions informed by reasoning
+        candidates = self.generate_candidate_actions(observation, reasoning_chain)
+        if not candidates:
+            return None
+
+        # Score and refine actions using both GRPO and reasoning chain
+        scored_actions = []
+        for action in candidates:
+            # Combine GRPO score with reasoning alignment
+            grpo_score = self.score_action(action, context)
+            reasoning_alignment = self._evaluate_reasoning_alignment(action, reasoning_chain)
+            combined_score = 0.7 * grpo_score + 0.3 * reasoning_alignment
+            
+            refined_action = action
+            refinement_steps = 0
+            
+            # Iteratively refine low-scoring actions
+            while combined_score < self.reflection_threshold and refinement_steps < self.max_refinement_steps:
+                refined_action = self.refine_action(refined_action, context, reasoning_chain)
+                grpo_score = self.score_action(refined_action, context)
+                reasoning_alignment = self._evaluate_reasoning_alignment(refined_action, reasoning_chain)
+                combined_score = 0.7 * grpo_score + 0.3 * reasoning_alignment
+                refinement_steps += 1
+            
+            scored_actions.append((refined_action, combined_score))
+
+        # Select best action
+        best_action, _ = max(scored_actions, key=lambda x: x[1])
+        
+        # Update group context
+        self.group_context['action_history'].append(best_action)
+        self.group_context['reasoning_history'].append(reasoning_chain)
+        U.dump_json(self.group_context, f"{self.ckpt_dir}/action/group_context.json")
+        
+        return best_action
+
+    def _evaluate_reasoning_alignment(self, action: Dict[str, Any], reasoning_chain: List[Dict[str, Any]]) -> float:
+        """Evaluate how well an action aligns with the reasoning chain."""
+        # Extract key conclusions from reasoning chain
+        conclusions = []
+        for thought in reasoning_chain:
+            if 'conclusion' in thought['reasoning'].lower():
+                conclusions.append(thought['reasoning'])
+        
+        if not conclusions:
+            return 0.5  # Default score if no clear conclusions
+            
+        # Evaluate alignment
+        system_message = SystemMessage(content="Evaluate how well this action aligns with the reasoning conclusions.")
+        human_message = HumanMessage(content=f"""
+        Action: {json.dumps(action)}
+        
+        Reasoning conclusions:
+        {'\n'.join(conclusions)}
+        
+        Score the alignment from 0.0 to 1.0.
+        """)
+        
+        response = self.llm.predict_messages([system_message, human_message])
+        try:
+            score = float(re.search(r"([\d.]+)", response.content).group(1))
+            return min(max(score, 0.0), 1.0)
+        except:
+            return 0.5
+
+    # ... (keep existing methods)
     def update_chest_memory(self, chests):
         for position, chest in chests.items():
             if position in self.chest_memory:
@@ -314,147 +536,27 @@ class ActionAgent:
                     chatlog.add(item)
         return "I also need " + ", ".join(chatlog) + "." if chatlog else ""
     
-    # TODO: Implement the process_action method
-    # def process_action(self, events):
-    #     # Query the scene graph to get nearby objects
-    #     nearby_objects = self.scene_graph.query(current_state["object_id"], relation="nearby")
-    #     # Use the nearby objects and other relationships for reasoning
-    #     pass
+    
 
-    # def analyze_vision_data(self, vision_data):
-    #     """
-    #     Parse vision data to identify resources and prioritize tasks.
-    #     """
-    #     resource_map = {
-    #         "tree": "Harvest wood",
-    #         "exposed_stone": "Mine cobblestone",
-    #         "water": "Collect water bucket",
-    #         "vegetation": "Gather seeds or food",
-    #     }
-    #     tasks = [resource_map[resource] for resource in vision_data if resource in resource_map]
-    #     return tasks
-    def analyze_vision_data(self, vision_data):
-        """
-        Parse vision data to identify resources and prioritize tasks.
-        """
-        tasks = []
+#     Key Features Verified
+# GRPO Implementation
 
-        for timestamp, data in vision_data.items():
-            # Analyze optimal_block
-            optimal_block = data.get("optimal_block", {})
-            block_type = optimal_block.get("type", "")
-            if block_type.endswith("_log"):
-                tasks.append("Harvest wood")
+# Generates multiple candidate actions (num_actions_to_generate).
+# Scores them based on multiple factors (score_action, _evaluate_reasoning_alignment).
+# Uses iterative refinement if the action score is below reflection_threshold.
+# Integrates group context tracking (self.group_context) for shared decision-making.
+# Chain of Thought (CoT) Reasoning
 
-            # Analyze other_blocks
-            for block in data.get("other_blocks", []):
-                block_type = block.get("type", "")
-                if block_type == "exposed_stone":
-                    tasks.append("Mine cobblestone")
-                elif block_type == "water":
-                    tasks.append("Collect water bucket")
-                elif block_type in ["mangrove_leaves", "moss_carpet", "vine"]:
-                    tasks.append("Gather seeds or food")
-                # Add more conditions as needed
+# Uses generate_chain_of_thought() to break down reasoning steps.
+# evaluate_reasoning_chain() assesses CoT quality across logical consistency, context relevance, actionability, and completeness.
+# Stores reasoning chains in self.reasoning_chains for later refinement.
+# Action Selection Refinement
 
-        # Remove duplicates
-        tasks = list(set(tasks))
+# If an action is suboptimal, the system refines it based on reasoning chains (refine_action).
+# Scores actions using a weighted combination of GRPO scores and reasoning alignment.
+# Uses a reflection loop (with a limit of max_refinement_steps).
+# Memory Handling
 
-        return tasks
-
-    def guide_agent_actions(self, vision_data, inventory_status):
-        """
-        Generate a list of prioritized actions for the agent based on vision data.
-        """
-        tasks = self.analyze_vision_data(vision_data)
-        prioritized_tasks = []
-
-        # Check inventory constraints
-        if inventory_status.get("space", 0) < len(tasks):
-            tasks.append("Deposit items into chest")
-
-        # Prioritize tasks based on available tools
-        for task in tasks:
-            if "Harvest wood" in task and inventory_status.get("tools", {}).get("axe", False):
-                prioritized_tasks.append(task)
-            elif "Mine cobblestone" in task and inventory_status.get("tools", {}).get("pickaxe", False):
-                prioritized_tasks.append(task)
-            elif "Collect water bucket" in task and inventory_status.get("tools", {}).get("bucket", False):
-                prioritized_tasks.append(task)
-            else:
-                prioritized_tasks.append("Craft necessary tools")
-
-        # Remove duplicates while preserving order
-        seen = set()
-        prioritized_tasks = [x for x in prioritized_tasks if not (x in seen or seen.add(x))]
-
-        return prioritized_tasks
-
-
-# Update Vision Data Regularly: Instead of fetching vision data only during initialization, ensure that the ActionAgent retrieves the latest vision data whenever it needs to make a decision. This can be achieved by calling self.vision_agent.get_vision_memory() at appropriate points in the ActionAgent's workflow.
-    # Vision Data Integration
-    # vision_data = self.vision_agent.get_vision_memory()
-    # if vision_data:
-    #     # Convert vision data into a descriptive format
-    #     vision_insights = []
-    #     for timestamp, data in vision_data.items():
-    #         optimal_block = data.get("optimal_block", {})
-    #         if optimal_block:
-    #             block_type = optimal_block.get("type", "Unknown")
-    #             position = optimal_block.get("position", {})
-    #             accessibility = optimal_block.get("accessibility", False)
-    #             vision_insights.append(
-    #                 f"At {timestamp}, detected an {block_type} at coordinates "
-    #                 f"({position.get('x', 0)}, {position.get('y', 0)}, {position.get('z', 0)}) "
-    #                 f"which is {'accessible' if accessibility else 'not accessible'}."
-    #             )
-    #         # Process other_blocks
-    #         for block in data.get("other_blocks", []):
-    #             block_type = block.get("type", "Unknown")
-    #             position = block.get("position", {})
-    #             accessibility = block.get("accessibility", False)
-    #             vision_insights.append(
-    #                 f"Detected an {block_type} at coordinates "
-    #                 f"({position.get('x', 0)}, {position.get('y', 0)}, {position.get('z', 0)}) "
-    #                 f"which is {'accessible' if accessibility else 'not accessible'}."
-    #             )
-        
-    #     # Combine insights into a single string
-    #     vision_description = "\n".join(vision_insights)
-    #     observation += f"Vision Insights:\n{vision_description}\n\n"
-    # else:
-    #     observation += f"Vision Insights: None\n\n"
-
-#     The ActionAgent class is a sophisticated component designed for decision-making and task execution in a Minecraft-like environment. Here are its key features:
-
-# 1. Initialization:
-#    - Uses OpenAI's ChatGPT model for decision-making
-#    - Integrates with a VisionAgent for visual analysis
-#    - Manages chest memory for item storage
-
-# 2. Memory Management:
-#    - Updates and maintains chest memory
-#    - Renders chest observations for decision-making
-
-# 3. Message Handling:
-#    - Renders system messages with available skills
-#    - Processes human messages with detailed environment observations
-#    - Handles AI messages and parses JavaScript code for execution
-
-# 4. Vision Integration:
-#    - Incorporates vision data from the VisionAgent into observations
-#    - Analyzes vision data to identify resources and prioritize tasks
-
-# 5. Task Prioritization:
-#    - Guides agent actions based on vision data and inventory status
-#    - Prioritizes tasks like harvesting wood, mining cobblestone, and crafting tools
-
-# 6. Error Handling:
-#    - Manages execution errors and provides error feedback
-
-# This ActionAgent is designed to work in conjunction with a VisionAgent, enabling more informed decision-making based on visual input from the game environment.
-
-# Citations:
-# [1] https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/30932262/9b85ec53-f7c5-44dd-8e63-a8c791053eeb/paste.txt
-# [2] https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/30932262/3017ea85-779f-4225-b509-da7711957561/paste-2.txt
-# [3] https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/30932262/9b115311-a48c-441e-96ed-82458d771414/paste-3.txt
+# group_context is persisted to maintain historical decisions.
+# Stores reasoning chains in reasoning_chains.json.
+# Handles chest memory updates (update_chest_memory) and environmental state observations.
